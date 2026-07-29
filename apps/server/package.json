@@ -1,0 +1,21 @@
+{
+  "name": "server",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/express": "^5.0.6",
+    "@types/ws": "^8.18.1"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@repo/game-core": "*",
+    "express": "^5.2.1",
+    "ws": "^8.21.1"
+  }
+}

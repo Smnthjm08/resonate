@@ -1,0 +1,17 @@
+{
+  "name": "@repo/game-core",
+  "module": "src/index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "chess.js": "^1.4.0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}
