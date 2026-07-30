@@ -38,6 +38,8 @@ export class GameSocketManager {
 
     room.add(socket);
     this.socketToGame.set(socket, gameId);
+
+    console.log(this.rooms);
   }
 
   leaveRoom(gameId: string, socket: WebSocket) {

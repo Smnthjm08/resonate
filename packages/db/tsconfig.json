@@ -1,0 +1,16 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    // JIT package: consumers compile `src` directly, so nothing is emitted here.
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "verbatimModuleSyntax": true,
+
+    // Best practices
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}
