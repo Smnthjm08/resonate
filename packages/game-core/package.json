@@ -1,17 +1,22 @@
 {
   "name": "@repo/game-core",
-  "module": "src/index.ts",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
-  "devDependencies": {
-    "@types/bun": "latest"
+  "exports": {
+    ".": "./src/index.ts"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "scripts": {
+    "lint": "eslint --max-warnings 0",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "chess.js": "^1.4.0"
   },
-  "exports": {
-    ".": "./src/index.ts"
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
   }
 }

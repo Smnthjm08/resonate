@@ -1,21 +1,24 @@
 {
   "name": "server",
-  "module": "src/index.ts",
+  "version": "0.0.0",
+  "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/index.ts"
-  },
-  "devDependencies": {
-    "@types/bun": "latest",
-    "@types/express": "^5.0.6",
-    "@types/ws": "^8.18.1"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
+    "dev": "bun --watch src/index.ts",
+    "lint": "eslint --max-warnings 0",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "@repo/game-core": "*",
     "express": "^5.2.1",
     "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@repo/eslint-config": "*",
+    "@types/bun": "latest",
+    "@types/express": "^5.0.6",
+    "@types/ws": "^8.18.1",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
   }
 }

@@ -27,9 +27,9 @@ wss.on("connection", (ws) => {
   });
 
   // ws.on("")
-
   ws.on("close", () => {
     console.log("connection closed!");
+    // leave all rooms
   });
 });
 

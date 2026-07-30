@@ -12,18 +12,19 @@
     },
     "apps/server": {
       "name": "server",
+      "version": "0.0.0",
       "dependencies": {
         "@repo/game-core": "*",
         "express": "^5.2.1",
         "ws": "^8.21.1",
       },
       "devDependencies": {
+        "@repo/eslint-config": "*",
         "@types/bun": "latest",
         "@types/express": "^5.0.6",
         "@types/ws": "^8.18.1",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
+        "eslint": "^9.39.1",
+        "typescript": "5.9.2",
       },
     },
     "apps/web": {
@@ -63,14 +64,15 @@
     },
     "packages/game-core": {
       "name": "@repo/game-core",
+      "version": "0.0.0",
       "dependencies": {
         "chess.js": "^1.4.0",
       },
       "devDependencies": {
-        "@types/bun": "latest",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
+        "@repo/eslint-config": "*",
+        "@repo/typescript-config": "*",
+        "eslint": "^9.39.1",
+        "typescript": "5.9.2",
       },
     },
     "packages/typescript-config": {
