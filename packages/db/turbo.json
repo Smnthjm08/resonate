@@ -1,0 +1,21 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "inputs": [
+        "prisma/schema.prisma",
+        "prisma/migrations/**",
+        "prisma.config.ts"
+      ],
+      "outputs": ["src/generated/**"],
+      "env": ["DATABASE_URL"]
+    },
+    "check-types": {
+      "dependsOn": ["$TURBO_EXTENDS$", "build"]
+    },
+    "lint": {
+      "dependsOn": ["$TURBO_EXTENDS$", "build"]
+    }
+  }
+}
