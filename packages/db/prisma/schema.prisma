@@ -19,11 +19,64 @@ model User {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  whiteGames Game[] @relation("WhitePlayer")
+  blackGames Game[] @relation("BlackPlayer")
+  winner     Game[] @relation("Winner")
+}
+
+enum GameStatus {
+  WAITING
+  PAUSED
+  ACTIVE
+  FINISHED
+}
+
+enum GameResult {
+  CHECKMATE
+  RESIGNATION
+  TIMEOUT
+  STALEMATE
+  THREEFOLD_REPETITION
+  INSUFFICIENT_MATERIAL
+  FIFTY_MOVE_RULE
+  DRAW_AGREED
+  ABANDONED
 }
 
 model Game {
-  id String @id @default(uuid())
+  id     String     @id @default(uuid())
+  status GameStatus @default(WAITING)
+
+  fen String
+
+  result GameResult?
+
+  whiteId String?
+  white   User?   @relation("WhitePlayer", fields: [whiteId], references: [id])
+
+  blackId String?
+  black   User?   @relation("BlackPlayer", fields: [blackId], references: [id])
+
+  winnerId String?
+  winner   User?   @relation("Winner", fields: [winnerId], references: [id])
+
+  moves Move[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Move {
+  id         String @id @default(uuid())
+  moveNumber Int
+  san        String
+  fen        String
+
+  gameId String
+  game Game @relation(fields: [gameId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, moveNumber])
 }

@@ -5,6 +5,7 @@ export type ClientMessage =
   | {
       type: EventType.GAME_JOIN;
       gameId: string;
+      userId: string;
     }
   | {
       type: EventType.GAME_LEAVE;

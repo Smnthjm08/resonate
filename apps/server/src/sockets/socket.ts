@@ -10,7 +10,13 @@ export function registerSocket(wss: WebSocketServer) {
     sendMessage(ws, { type: EventType.CONNECTED });
 
     ws.on("message", (rawMessage) => {
-      handleMessage(ws, rawMessage);
+      handleMessage(ws, rawMessage).catch((error) => {
+        console.error("Error handling message", error);
+        sendMessage(ws, {
+          type: EventType.GAME_ERROR,
+          message: "Internal error",
+        });
+      });
     });
 
     ws.on("close", () => {

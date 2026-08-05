@@ -1,13 +1,17 @@
-// server/src/sockets/game-socket.ts
 import type WebSocket from "ws";
+
+type Session = { userId: string; gameId: string };
 
 export class GameSocketManager {
   private readonly rooms = new Map<string, Set<WebSocket>>();
+  private readonly sessions = new Map<WebSocket, Session>();
 
-  private readonly socketToGame = new Map<WebSocket, string>();
+  getUserId(socket: WebSocket): string | undefined {
+    return this.sessions.get(socket)?.userId;
+  }
 
-  joinRoom(gameId: string, socket: WebSocket) {
-    const currentGameId = this.socketToGame.get(socket);
+  joinRoom(gameId: string, userId: string, socket: WebSocket) {
+    const currentGameId = this.sessions.get(socket)?.gameId;
 
     if (currentGameId) {
       if (currentGameId === gameId) {
@@ -25,9 +29,7 @@ export class GameSocketManager {
     }
 
     room.add(socket);
-    this.socketToGame.set(socket, gameId);
-
-    console.log(this.rooms);
+    this.sessions.set(socket, { userId, gameId });
   }
 
   leaveRoom(gameId: string, socket: WebSocket) {
@@ -36,7 +38,7 @@ export class GameSocketManager {
     if (!room) return;
 
     room.delete(socket);
-    this.socketToGame.delete(socket);
+    this.sessions.delete(socket);
 
     if (room.size === 0) {
       this.rooms.delete(gameId);
@@ -44,7 +46,7 @@ export class GameSocketManager {
   }
 
   leaveAllRooms(socket: WebSocket) {
-    const gameId = this.socketToGame.get(socket);
+    const gameId = this.sessions.get(socket)?.gameId;
 
     if (!gameId) return;
 
