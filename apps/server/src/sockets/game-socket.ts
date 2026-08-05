@@ -6,18 +6,6 @@ export class GameSocketManager {
 
   private readonly socketToGame = new Map<WebSocket, string>();
 
-  // joinRoom(gameId: string, socket: WebSocket) {
-  //   let room = this.rooms.get(gameId);
-
-  //   if (!room) {
-  //     room = new Set<WebSocket>();
-  //     this.rooms.set(gameId, room);
-  //   }
-
-  //   room.add(socket);
-  //   this.socketToGame.set(socket, gameId);
-  // }
-
   joinRoom(gameId: string, socket: WebSocket) {
     const currentGameId = this.socketToGame.get(socket);
 
@@ -54,16 +42,6 @@ export class GameSocketManager {
       this.rooms.delete(gameId);
     }
   }
-
-  // leaveAllRooms(socket: WebSocket) {
-  //   const gameId = this.socketToGame.get(socket);
-
-  //   if (!gameId) return;
-
-  //   this.leaveRoom(gameId, socket);
-
-  //   this.socketToGame.delete(socket);
-  // }
 
   leaveAllRooms(socket: WebSocket) {
     const gameId = this.socketToGame.get(socket);

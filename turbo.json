@@ -1,6 +1,7 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalEnv": ["NODE_ENV", "BACKEND_PORT"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -22,6 +23,18 @@
       "dependsOn": ["transit"]
     },
     "dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
+    },
+    "db:migrate": {
+      "cache": false,
+      "persistent": true
+    },
+    "db:deploy": {
+      "cache": false
+    },
+    "db:studio": {
       "cache": false,
       "persistent": true
     }

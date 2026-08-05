@@ -1,5 +1,7 @@
 // packages/game-core/src/types/event.ts
 export enum EventType {
+  CONNECTED = "connected",
+
   GAME_JOIN = "game:join",
   GAME_LEAVE = "game:leave",
 
