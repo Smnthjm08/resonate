@@ -5,9 +5,7 @@ import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import { healthRoute } from "./route";
 import { registerSocket } from "./sockets/socket";
-import { guestUserSignup, userSignup, userSignin } from "./routes/auth.routes";
-import { createGame } from "./routes/game.routes";
-import { authMiddleware } from "./middlewares/auth.middleware";
+import { apiRouter } from "./routes";
 
 const BACKEND_PORT = process.env.BACKEND_PORT ?? 8001;
 
@@ -18,10 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.get("/health", healthRoute);
 
-app.post("/api/v1/auth/guest", guestUserSignup);
-app.post("/api/v1/auth/signup", userSignup);
-app.post("/api/v1/auth/signin", userSignin);
-app.post("/api/v1/game", authMiddleware, createGame);
+app.use("/api/v1", apiRouter);
 
 const server = createServer(app);
 

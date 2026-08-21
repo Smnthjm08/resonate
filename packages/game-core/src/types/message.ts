@@ -19,10 +19,27 @@ export type ServerMessage =
   | {
       type: EventType.GAME_JOIN;
       gameId: string;
+      data?: {
+        userId: string;
+      };
     }
   | {
       type: EventType.GAME_LEAVE;
       gameId: string;
+      data?: {
+        userId?: string;
+      };
+    }
+  | {
+      type: EventType.GAME_STATE;
+      gameId: string;
+      data: {
+        fen: string;
+        whiteId: string | null;
+        blackId: string | null;
+        status: string;
+        turn: "white" | "black";
+      };
     }
   | {
       type: EventType.GAME_ERROR;

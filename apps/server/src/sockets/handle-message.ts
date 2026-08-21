@@ -47,7 +47,44 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         return;
       }
 
+      const game = await prisma.game.findUnique({
+        where: { id: message.gameId },
+      });
+
+      if (!game) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Game not found" },
+        });
+        return;
+      }
+
       gameSocketManager.joinRoom(message.gameId, message.data.userId, socket);
+
+      const activeTurn: "white" | "black" =
+        game.fen.split(" ")[1] === "w" ? "white" : "black";
+
+      sendMessage(socket, {
+        type: EventType.GAME_STATE,
+        gameId: message.gameId,
+        data: {
+          fen: game.fen,
+          whiteId: game.whiteId,
+          blackId: game.blackId,
+          status: game.status,
+          turn: activeTurn,
+        },
+      });
+
+      gameSocketManager.broadcast(
+        message.gameId,
+        {
+          type: EventType.GAME_JOIN,
+          gameId: message.gameId,
+          data: { userId: message.data.userId },
+        },
+        socket
+      );
       break;
     }
 

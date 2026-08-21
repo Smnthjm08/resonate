@@ -1,4 +1,6 @@
+import type { ServerMessage } from "@repo/game-core";
 import type WebSocket from "ws";
+import { sendMessage } from "./send";
 
 type Session = { userId: string; gameId: string };
 
@@ -51,6 +53,25 @@ export class GameSocketManager {
     if (!gameId) return;
 
     this.leaveRoom(gameId, socket);
+  }
+
+  broadcast(
+    gameId: string,
+    message: ServerMessage,
+    excludeSocket?: WebSocket
+  ) {
+    const room = this.rooms.get(gameId);
+
+    if (!room) return;
+
+    for (const clientSocket of room) {
+      if (
+        clientSocket !== excludeSocket &&
+        clientSocket.readyState === 1 /* OPEN */
+      ) {
+        sendMessage(clientSocket, message);
+      }
+    }
   }
 }
 

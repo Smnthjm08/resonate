@@ -1,41 +1,10 @@
-import { START_FEN } from "@repo/game-core";
-import type { Request, Response } from "express";
-import { prisma } from "@repo/db";
+import { Router } from "express";
+import { createGame, joinGame } from "../controllers/game.controller";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
-export const createGame = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
+export const gameRouter: Router = Router();
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        error: "Unauthorized",
-        data: null,
-        message: "Unauthorized",
-      });
-    }
+gameRouter.post("/", authMiddleware, createGame);
+gameRouter.post("/:gameId/join", authMiddleware, joinGame);
 
-    const game = await prisma.game.create({
-      data: {
-        whiteId: userId,
-        status: "WAITING",
-        fen: START_FEN,
-      },
-    });
-
-    res.status(201).json({
-      success: true,
-      error: null,
-      data: game,
-      message: "Game created",
-    });
-  } catch (error) {
-    console.error("Error creating game", error);
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
-      data: null,
-      message: "Internal server error",
-    });
-  }
-};
+export default gameRouter;
