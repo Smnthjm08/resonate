@@ -27,6 +27,12 @@ export const config = [
     },
   },
   {
+    rules: {
+      semi: ["error", "always"],
+      quotes: ["error", "double", { avoidEscape: true }],
+    },
+  },
+  {
     ignores: ["dist/**"],
   },
 ];
