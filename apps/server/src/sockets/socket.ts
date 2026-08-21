@@ -14,7 +14,7 @@ export function registerSocket(wss: WebSocketServer) {
         console.error("Error handling message", error);
         sendMessage(ws, {
           type: EventType.GAME_ERROR,
-          message: "Internal error",
+          data: { message: "Internal error" },
         });
       });
     });

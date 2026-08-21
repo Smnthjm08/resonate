@@ -7,10 +7,10 @@ import { defineConfig, env } from "prisma/config";
 // Resolved from this file, not the cwd, so Prisma commands work from anywhere.
 const packageRoot = path.dirname(fileURLToPath(import.meta.url));
 
-dotenv.config({ path: path.join(packageRoot, ".env") });
+dotenv.config({ path: path.resolve(packageRoot, "../../.env") });
 
 if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is required");
+  throw new Error("DATABASE_URL is required in root .env");
 }
 
 export default defineConfig({

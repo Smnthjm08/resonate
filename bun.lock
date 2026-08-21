@@ -90,7 +90,6 @@
       "version": "0.0.0",
       "dependencies": {
         "chess.js": "^1.4.0",
-        "zod": "^4.4.3",
       },
       "devDependencies": {
         "@repo/eslint-config": "*",

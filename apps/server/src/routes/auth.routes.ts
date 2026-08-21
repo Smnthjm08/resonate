@@ -93,7 +93,7 @@ export async function guestUserSignup(req: Request, res: Response) {
     console.error("Error signingup guest", error);
     res.status(500).json({
       success: false,
-      error: error,
+      error: error instanceof Error ? error.message : "Unknown error",
       data: null,
       message: "Failed to create User!",
     });

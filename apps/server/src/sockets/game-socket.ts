@@ -35,7 +35,7 @@ export class GameSocketManager {
   leaveRoom(gameId: string, socket: WebSocket) {
     const room = this.rooms.get(gameId);
 
-    if (!room) return;
+    if (!room || !room.has(socket)) return;
 
     room.delete(socket);
     this.sessions.delete(socket);

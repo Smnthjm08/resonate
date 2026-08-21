@@ -1,4 +1,3 @@
-// packages/game-core/src/types/event.ts
 export enum EventType {
   CONNECTED = "connected",
 

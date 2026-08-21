@@ -13,7 +13,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
   } catch {
     sendMessage(socket, {
       type: EventType.GAME_ERROR,
-      message: "Invalid JSON",
+      data: { message: "Invalid JSON" },
     });
     return;
   }
@@ -23,7 +23,9 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
   if (!result.success) {
     sendMessage(socket, {
       type: EventType.GAME_ERROR,
-      message: `Invalid message: ${result.error.issues[0]?.message ?? "unrecognised event"}`,
+      data: {
+        message: `Invalid message: ${result.error.issues[0]?.message ?? "unrecognised event"}`,
+      },
     });
     return;
   }
@@ -33,19 +35,19 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
   switch (message.type) {
     case EventType.GAME_JOIN: {
       const user = await prisma.user.findUnique({
-        where: { id: message.userId },
+        where: { id: message.data.userId },
         select: { id: true },
       });
 
       if (!user) {
         sendMessage(socket, {
           type: EventType.GAME_ERROR,
-          message: "Unknown user",
+          data: { message: "Unknown user" },
         });
         return;
       }
 
-      gameSocketManager.joinRoom(message.gameId, message.userId, socket);
+      gameSocketManager.joinRoom(message.gameId, message.data.userId, socket);
       break;
     }
 

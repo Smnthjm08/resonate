@@ -7,7 +7,7 @@ import { healthRoute } from "./route";
 import { registerSocket } from "./sockets/socket";
 import { guestUserSignup } from "./routes/auth.routes";
 
-const BACKEND_PORT = process.env.BACKEND_PORT ?? 8081;
+const BACKEND_PORT = process.env.BACKEND_PORT ?? 8001;
 
 const app = express();
 
