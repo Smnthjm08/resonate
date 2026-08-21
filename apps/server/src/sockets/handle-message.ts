@@ -1,5 +1,5 @@
-import { EventType } from "@repo/game-core";
-import { prisma } from "@repo/db";
+import { EventType, WHITE } from "@repo/game-core";
+import { GameStatus, prisma } from "@repo/db";
 import type { RawData, WebSocket } from "ws";
 import { gameSocketManager } from "./game-socket";
 import { sendMessage } from "./send";
@@ -59,10 +59,29 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         return;
       }
 
+      const otherActiveGame = await prisma.game.findFirst({
+        where: {
+          status: GameStatus.ACTIVE,
+          id: { not: message.gameId },
+          OR: [
+            { whiteId: message.data.userId },
+            { blackId: message.data.userId },
+          ],
+        },
+      });
+
+      if (otherActiveGame) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "You are already in another active game" },
+        });
+        return;
+      }
+
       gameSocketManager.joinRoom(message.gameId, message.data.userId, socket);
 
       const activeTurn: "white" | "black" =
-        game.fen.split(" ")[1] === "w" ? "white" : "black";
+        game.fen.split(" ")[1] === WHITE ? "white" : "black";
 
       sendMessage(socket, {
         type: EventType.GAME_STATE,
