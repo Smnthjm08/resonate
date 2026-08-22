@@ -36,6 +36,13 @@ export async function authMiddleware(
     where: {
       id: payload.userId,
     },
+    select: {
+      id: true,
+      username: true,
+      isGuest: true,
+      createdAt: true,
+      updatedAt: true,
+    },
   });
 
   if (!user) {

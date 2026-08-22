@@ -1,9 +1,10 @@
-import { EventType, WHITE } from "@repo/game-core";
+import { EventType, WHITE, tryMove } from "@repo/game-core";
 import { GameStatus, prisma } from "@repo/db";
 import type { RawData, WebSocket } from "ws";
 import { gameSocketManager } from "./game-socket";
 import { sendMessage } from "./send";
 import { clientMessageSchema } from "./schema";
+import { gameEngineCache } from "./game-engine-cache";
 
 export async function handleMessage(socket: WebSocket, raw: RawData) {
   let payload: unknown;
@@ -34,8 +35,18 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
 
   switch (message.type) {
     case EventType.GAME_JOIN: {
+      const userId = gameSocketManager.getUserId(socket);
+
+      if (!userId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Unauthorized socket session" },
+        });
+        return;
+      }
+
       const user = await prisma.user.findUnique({
-        where: { id: message.data.userId },
+        where: { id: userId },
         select: { id: true },
       });
 
@@ -63,10 +74,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         where: {
           status: GameStatus.ACTIVE,
           id: { not: message.gameId },
-          OR: [
-            { whiteId: message.data.userId },
-            { blackId: message.data.userId },
-          ],
+          OR: [{ whiteId: userId }, { blackId: userId }],
         },
       });
 
@@ -78,7 +86,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         return;
       }
 
-      gameSocketManager.joinRoom(message.gameId, message.data.userId, socket);
+      gameSocketManager.joinRoom(message.gameId, socket);
 
       const activeTurn: "white" | "black" =
         game.fen.split(" ")[1] === WHITE ? "white" : "black";
@@ -100,7 +108,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         {
           type: EventType.GAME_JOIN,
           gameId: message.gameId,
-          data: { userId: message.data.userId },
+          data: { userId },
         },
         socket
       );
@@ -110,5 +118,72 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
     case EventType.GAME_LEAVE:
       gameSocketManager.leaveRoom(message.gameId, socket);
       break;
+
+    case EventType.GAME_MOVE: {
+      const userId = gameSocketManager.getUserId(socket);
+
+      if (!userId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Unauthorized socket session" },
+        });
+        return;
+      }
+
+      const game = await prisma.game.findUnique({
+        where: { id: message.gameId },
+      });
+
+      if (!game) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Game not found" },
+        });
+        return;
+      }
+
+      if (game.status !== GameStatus.ACTIVE) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Game is not active" },
+        });
+        return;
+      }
+
+      if (userId !== game.whiteId && userId !== game.blackId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Spectators cannot make moves" },
+        });
+        return;
+      }
+
+      const activeTurn: "white" | "black" =
+        game.fen.split(" ")[1] === WHITE ? "white" : "black";
+
+      if (
+        (activeTurn === "white" && userId !== game.whiteId) ||
+        (activeTurn === "black" && userId !== game.blackId)
+      ) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Not your turn" },
+        });
+        return;
+      }
+
+      const engine = gameEngineCache.getOrHydrate(message.gameId, game.fen);
+      const moveResult = tryMove(engine, message.data);
+
+      if (!moveResult) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Illegal move" },
+        });
+        return;
+      }
+
+      break;
+    }
   }
 }

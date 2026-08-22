@@ -5,13 +5,19 @@ export type ClientMessage =
   | {
       type: EventType.GAME_JOIN;
       gameId: string;
-      data: {
-        userId: string;
-      };
     }
   | {
       type: EventType.GAME_LEAVE;
       gameId: string;
+    }
+  | {
+      type: EventType.GAME_MOVE;
+      gameId: string;
+      data: {
+        from: string;
+        to: string;
+        promotion?: string;
+      };
     };
 
 // server -> client
@@ -39,6 +45,17 @@ export type ServerMessage =
         blackId: string | null;
         status: string;
         turn: "white" | "black";
+      };
+    }
+  | {
+      type: EventType.GAME_MOVE;
+      gameId: string;
+      data: {
+        from: string;
+        to: string;
+        promotion?: string;
+        san: string;
+        fen: string;
       };
     }
   | {

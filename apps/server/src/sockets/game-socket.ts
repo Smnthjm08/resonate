@@ -17,16 +17,37 @@ export class GameSocketManager {
     return this.userSockets.get(userId);
   }
 
-  joinRoom(gameId: string, userId: string, socket: WebSocket) {
+  setAuthenticatedUser(socket: WebSocket, userId: string) {
     const existingSocket = this.userSockets.get(userId);
 
     if (existingSocket && existingSocket !== socket) {
       this.leaveAllRooms(existingSocket);
+      try {
+        existingSocket.close(4000, "Replaced by new connection");
+      } catch {
+        // Ignore if already closed
+      }
     }
 
-    const currentGameId = this.sessions.get(socket)?.gameId;
+    const currentSession = this.sessions.get(socket);
+    this.sessions.set(socket, {
+      userId,
+      gameId: currentSession?.gameId ?? "",
+    });
+    this.userSockets.set(userId, socket);
+  }
 
-    if (currentGameId && currentGameId !== gameId) {
+  joinRoom(gameId: string, socket: WebSocket) {
+    const session = this.sessions.get(socket);
+
+    if (!session?.userId) {
+      throw new Error("Socket must be authenticated before joining a room");
+    }
+
+    const userId = session.userId;
+    const currentGameId = session.gameId;
+
+    if (currentGameId && currentGameId !== gameId && currentGameId !== "") {
       this.leaveRoom(currentGameId, socket);
     }
 
@@ -39,7 +60,6 @@ export class GameSocketManager {
 
     room.add(socket);
     this.sessions.set(socket, { userId, gameId });
-    this.userSockets.set(userId, socket);
   }
 
   leaveRoom(gameId: string, socket: WebSocket) {
@@ -49,7 +69,10 @@ export class GameSocketManager {
     if (!room || !room.has(socket)) return;
 
     room.delete(socket);
-    this.sessions.delete(socket);
+
+    if (session) {
+      this.sessions.set(socket, { userId: session.userId, gameId: "" });
+    }
 
     if (session?.userId && this.userSockets.get(session.userId) === socket) {
       this.userSockets.delete(session.userId);
@@ -67,11 +90,19 @@ export class GameSocketManager {
   }
 
   leaveAllRooms(socket: WebSocket) {
-    const gameId = this.sessions.get(socket)?.gameId;
+    const session = this.sessions.get(socket);
 
-    if (!gameId) return;
+    if (!session?.gameId) {
+      if (session?.userId) {
+        this.userSockets.delete(session.userId);
+      }
 
-    this.leaveRoom(gameId, socket);
+      this.sessions.delete(socket);
+      return;
+    }
+
+    this.leaveRoom(session.gameId, socket);
+    this.sessions.delete(socket);
   }
 
   broadcast(

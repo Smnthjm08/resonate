@@ -1,6 +1,6 @@
-import { Chess } from "chess.js";
+import { START_FEN } from "./engine";
 
-export const START_FEN = new Chess().fen();
+export { START_FEN };
 
 // colors
 export const WHITE = "w";

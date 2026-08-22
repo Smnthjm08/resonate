@@ -1,6 +1,7 @@
-import { START_FEN } from "@repo/game-core";
+import { EventType, START_FEN, WHITE } from "@repo/game-core";
 import type { Request, Response } from "express";
 import { GameStatus, prisma } from "@repo/db";
+import { gameSocketManager } from "../sockets/game-socket";
 
 export const createGame = async (req: Request, res: Response) => {
   try {
@@ -135,6 +136,23 @@ export const joinGame = async (req: Request, res: Response) => {
         error: "Game is full",
         data: null,
         message: "Game is full",
+      });
+    }
+
+    if (updatedGame !== game) {
+      const activeTurn: "white" | "black" =
+        updatedGame.fen.split(" ")[1] === WHITE ? "white" : "black";
+
+      gameSocketManager.broadcast(gameId, {
+        type: EventType.GAME_STATE,
+        gameId,
+        data: {
+          fen: updatedGame.fen,
+          whiteId: updatedGame.whiteId,
+          blackId: updatedGame.blackId,
+          status: updatedGame.status,
+          turn: activeTurn,
+        },
       });
     }
 
