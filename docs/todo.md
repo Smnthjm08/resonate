@@ -10,8 +10,8 @@ A "sitting" = one focused 60–90 min block. One task at a time; each ends in a 
 - **Phase 1 — Domain model** ✅ `Game` (status, players, `fen`, `result`) + `Move` migrated; guest auth at `POST /api/v1/auth/guest`; sockets carry a `userId`.
 - **Phase 2 — Game lifecycle** ✅ Create/join/list over HTTP, room broadcast, `GAME_STATE` on join. Grew past the original scope — see "Built beyond the plan" below.
 - **Phase 4 sitting 1 — Connection churn** ✅ Done early, out of order: disconnect survives, reconnect restores state.
-- **Phase 3 — Moves** ← next. Blocked on one thing first: [socket identity](#before-phase-3).
-- **Phase 4 sitting 2 — Clocks** — not started.
+- **Phase 3 — Moves** ✅ Validate, apply, persist, broadcast, detect game over. Engine cache is evicted on any write failure so it can never outrun the DB.
+- **Phase 4 sitting 2 — Clocks** ← next. Not started; needs a schema migration before any handler work.
 
 ## Built beyond the plan
 
@@ -32,7 +32,7 @@ Shipped but never written down, so it doesn't get re-planned or re-litigated:
 - [x] **Socket identity is client-asserted** — fixed. Socket is authenticated via JWT (`ws://localhost:8001?token=<JWT>`), `data.userId` dropped from client `GAME_JOIN`.
 - [ ] **`GAME_STATE` doesn't say what the receiver is** — no `role: "white" | "black" | "spectator"` field, so a client can't tell whether to render a draggable board. Phase 3 needs the same distinction server-side to reject spectator moves; add the field when the move handler lands.
 - [x] **HTTP join doesn't reach the WS room** — fixed. `POST /:gameId/join` now broadcasts updated `GAME_STATE` directly to all connected sockets in the room when a player joins.
-- [ ] **`Move` stores only `san` + `fen`** — no `from`/`to`/`promotion` columns. Enough to replay a game, not enough to highlight the last move without re-parsing SAN. Decide in Phase 3 sitting 2, before the table has data in it.
+- [x] **`Move` stores only `san` + `fen`** — fixed. `from` / `to` / `promotion` added in `20260822090939_move_from_to_promotion`, applied while the table was still empty. `tryMove` already returned all three; the write path now stores them.
 - [ ] **`GET /games` returns every game ever** — no pagination, no cap. Fine at current volume, will not stay fine.
 - [x] **Bug: `leaveRoom` deletes the session unconditionally** — fixed, now guards on `room.has(socket)`.
 - [x] **Decide the wire-message shape** — settled on the `{ type, gameId?, data? }` envelope.
@@ -61,8 +61,9 @@ The core. Hardest part of the project.
 
 ### Sitting 2 — persist & finish
 
-- [ ] **Persist the move** — `Move` row + `Game.fen` update in one transaction, then broadcast `GAME_STATE`. `moveNumber` is `@@unique([gameId, moveNumber])`, so derive it inside the transaction, not from a stale count.
-- [ ] **Detect game over** — `getOutcome` after each move → set `status`, `result`, and `winnerId` (the column exists and nothing writes to it yet), broadcast, evict the cached instance.
+- [x] **Persist the move** — `Move` row + `Game.fen` update in one `prisma.$transaction`. `moveNumber` derived from a `findFirst` ordered desc *inside* the transaction. Broadcasts `GAME_MOVE` (the delta) then `GAME_STATE` (authoritative) to the whole room, mover included.
+- [x] **Detect game over** — `getOutcome` after each move → `status: FINISHED`, `result`, `winnerId`, broadcast, evict the cached instance.
+- [x] **Evict the cache on write failure** — wasn't in the original plan. `tryMove` mutates the cached engine before the transaction runs, so any failure between the two left the cache permanently ahead of the DB. The `catch` now evicts, forcing rehydration from persisted state.
 
 ## Phase 4 — Robustness
 
@@ -90,6 +91,8 @@ Record choices here as you make them so you don't re-litigate them next sitting.
 - **`handleMessage` is async, `ws.on("message")` doesn't await it** — hence the `.catch` in `socket.ts`. Without it a DB error is an unhandled rejection that kills the process instead of failing one message.
 - **One `sessions: Map<WebSocket, {userId, gameId}>`**, not two parallel maps — same key, same lifetime, can't desync.
 - **One socket per user** — `joinRoom` calls `leaveAllRooms` on any previous socket for that `userId`. Reconnect is therefore takeover, not a second seat.
+- **The engine cache is a write-through cache, and eviction is its only repair.** `tryMove` mutates in place, so between `tryMove` and the commit the cache is ahead of the DB. Every path that doesn't commit must `evict(gameId)` — eviction is always safe, since `getOrHydrate` rebuilds from `Game.fen`. Don't add a failure path to the move handler without one.
+- **Both `GAME_MOVE` and `GAME_STATE` go out after a move.** `GAME_MOVE` carries `from`/`to`/`promotion`/`san` so the client can animate and highlight; `GAME_STATE` carries the authoritative FEN. A client that only trusts `GAME_STATE` is still correct.
 
 ### Conventions
 

@@ -1,5 +1,5 @@
-import { EventType, WHITE, tryMove } from "@repo/game-core";
-import { GameStatus, prisma } from "@repo/db";
+import { EventType, WHITE, getOutcome, tryMove } from "@repo/game-core";
+import { GameResult, GameStatus, prisma } from "@repo/db";
 import type { RawData, WebSocket } from "ws";
 import { gameSocketManager } from "./game-socket";
 import { sendMessage } from "./send";
@@ -182,6 +182,103 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         });
         return;
       }
+
+      // `tryMove` has already mutated the cached engine. From here until the
+      // transaction commits, the cache is ahead of the DB — every failure path
+      // below must evict so the next read rehydrates from persisted state.
+      const outcome = getOutcome(engine);
+
+      const winnerId = outcome.isGameOver
+        ? outcome.winner === "white"
+          ? game.whiteId
+          : outcome.winner === "black"
+            ? game.blackId
+            : null
+        : null;
+
+      try {
+        await prisma.$transaction(async (tx) => {
+          // Derived inside the transaction: a count read outside it can be
+          // stale, and `@@unique([gameId, moveNumber])` turns that into a
+          // constraint violation rather than a silently wrong move number.
+          const lastMove = await tx.move.findFirst({
+            where: { gameId: message.gameId },
+            orderBy: { moveNumber: "desc" },
+            select: { moveNumber: true },
+          });
+
+          await tx.move.create({
+            data: {
+              gameId: message.gameId,
+              moveNumber: (lastMove?.moveNumber ?? 0) + 1,
+              san: moveResult.san,
+              fen: moveResult.fen,
+              from: moveResult.from,
+              to: moveResult.to,
+              promotion: moveResult.promotion ?? null,
+            },
+          });
+
+          await tx.game.update({
+            where: { id: message.gameId },
+            data: {
+              fen: moveResult.fen,
+              ...(outcome.isGameOver
+                ? {
+                    status: GameStatus.FINISHED,
+                    result: outcome.result
+                      ? GameResult[outcome.result]
+                      : null,
+                    winnerId,
+                  }
+                : {}),
+            },
+          });
+        });
+      } catch (error) {
+        gameEngineCache.evict(message.gameId);
+
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: {
+            message: `Failed to save move: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+          },
+        });
+        return;
+      }
+
+      if (outcome.isGameOver) {
+        gameEngineCache.evict(message.gameId);
+      }
+
+      const nextTurn: "white" | "black" =
+        moveResult.fen.split(" ")[1] === WHITE ? "white" : "black";
+
+      gameSocketManager.broadcast(message.gameId, {
+        type: EventType.GAME_MOVE,
+        gameId: message.gameId,
+        data: {
+          from: moveResult.from,
+          to: moveResult.to,
+          promotion: moveResult.promotion,
+          san: moveResult.san,
+          fen: moveResult.fen,
+        },
+      });
+
+      gameSocketManager.broadcast(message.gameId, {
+        type: EventType.GAME_STATE,
+        gameId: message.gameId,
+        data: {
+          fen: moveResult.fen,
+          whiteId: game.whiteId,
+          blackId: game.blackId,
+          status: outcome.isGameOver ? GameStatus.FINISHED : game.status,
+          turn: nextTurn,
+        },
+      });
 
       break;
     }
