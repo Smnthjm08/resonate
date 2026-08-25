@@ -128,7 +128,11 @@ export const joinGame = async (req: Request, res: Response) => {
       role = "black";
       updatedGame = await prisma.game.update({
         where: { id: gameId },
-        data: { blackId: userId, status: GameStatus.ACTIVE },
+        data: {
+          blackId: userId,
+          status: GameStatus.ACTIVE,
+          lastMoveAt: new Date(),
+        },
       });
     } else {
       return res.status(400).json({
@@ -150,6 +154,8 @@ export const joinGame = async (req: Request, res: Response) => {
           fen: updatedGame.fen,
           whiteId: updatedGame.whiteId,
           blackId: updatedGame.blackId,
+          whiteTimeMs: updatedGame.whiteTimeMs,
+          blackTimeMs: updatedGame.blackTimeMs,
           status: updatedGame.status,
           turn: activeTurn,
         },

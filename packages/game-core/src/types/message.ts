@@ -18,6 +18,14 @@ export type ClientMessage =
         to: string;
         promotion?: string;
       };
+    }
+  | {
+      type: EventType.GAME_PAUSE;
+      gameId: string;
+    }
+  | {
+      type: EventType.GAME_RESUME;
+      gameId: string;
     };
 
 // server -> client
@@ -43,6 +51,8 @@ export type ServerMessage =
         fen: string;
         whiteId: string | null;
         blackId: string | null;
+        whiteTimeMs: number;
+        blackTimeMs: number;
         status: string;
         turn: "white" | "black";
       };
@@ -56,6 +66,20 @@ export type ServerMessage =
         promotion?: string;
         san: string;
         fen: string;
+      };
+    }
+  | {
+      type: EventType.GAME_PAUSE;
+      gameId: string;
+      data?: {
+        status: string;
+      };
+    }
+  | {
+      type: EventType.GAME_RESUME;
+      gameId: string;
+      data?: {
+        status: string;
       };
     }
   | {

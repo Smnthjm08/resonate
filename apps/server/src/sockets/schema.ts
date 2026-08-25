@@ -20,4 +20,12 @@ export const clientMessageSchema: z.ZodType<ClientMessage> =
         promotion: z.string().optional(),
       }),
     }),
+    z.object({
+      type: z.literal(EventType.GAME_PAUSE),
+      gameId: z.string().min(1),
+    }),
+    z.object({
+      type: z.literal(EventType.GAME_RESUME),
+      gameId: z.string().min(1),
+    }),
   ]);

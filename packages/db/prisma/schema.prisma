@@ -53,6 +53,10 @@ model Game {
 
   result GameResult?
 
+  whiteTimeMs Int @default(300000)
+  blackTimeMs Int @default(300000)
+  lastMoveAt  DateTime?
+
   whiteId String?
   white   User?   @relation("WhitePlayer", fields: [whiteId], references: [id])
 
