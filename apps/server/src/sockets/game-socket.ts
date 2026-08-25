@@ -1,8 +1,22 @@
-import { EventType, type ServerMessage } from "@repo/game-core";
+import { EventType, type GameRole, type ServerMessage } from "@repo/game-core";
 import type WebSocket from "ws";
 import { sendMessage } from "./send";
 
 type Session = { userId: string; gameId: string };
+type GameStateData = Omit<
+  Extract<ServerMessage, { type: EventType.GAME_STATE }>["data"],
+  "role"
+>;
+
+function getRole(
+  userId: string,
+  whiteId: string | null,
+  blackId: string | null,
+): GameRole {
+  if (userId === whiteId) return "white";
+  if (userId === blackId) return "black";
+  return "spectator";
+}
 
 export class GameSocketManager {
   private readonly rooms = new Map<string, Set<WebSocket>>();
@@ -105,11 +119,7 @@ export class GameSocketManager {
     this.sessions.delete(socket);
   }
 
-  broadcast(
-    gameId: string,
-    message: ServerMessage,
-    excludeSocket?: WebSocket
-  ) {
+  broadcast(gameId: string, message: ServerMessage, excludeSocket?: WebSocket) {
     const room = this.rooms.get(gameId);
 
     if (!room) return;
@@ -120,6 +130,33 @@ export class GameSocketManager {
         clientSocket.readyState === 1 /* OPEN */
       ) {
         sendMessage(clientSocket, message);
+      }
+    }
+  }
+
+  sendGameState(socket: WebSocket, gameId: string, data: GameStateData) {
+    const session = this.sessions.get(socket);
+
+    if (!session || session.gameId !== gameId) return;
+
+    sendMessage(socket, {
+      type: EventType.GAME_STATE,
+      gameId,
+      data: {
+        ...data,
+        role: getRole(session.userId, data.whiteId, data.blackId),
+      },
+    });
+  }
+
+  broadcastGameState(gameId: string, data: GameStateData) {
+    const room = this.rooms.get(gameId);
+
+    if (!room) return;
+
+    for (const socket of room) {
+      if (socket.readyState === 1 /* OPEN */) {
+        this.sendGameState(socket, gameId, data);
       }
     }
   }

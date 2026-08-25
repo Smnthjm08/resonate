@@ -1,9 +1,15 @@
-import type { User } from "@repo/db";
+export {};
 
 declare global {
   namespace Express {
     interface Request {
-      user?: Omit<User, "password">;
+      user?: {
+        id: string;
+        username: string;
+        isGuest: boolean;
+        createdAt: Date;
+        updatedAt: Date;
+      };
     }
   }
 }

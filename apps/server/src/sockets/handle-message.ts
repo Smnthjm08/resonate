@@ -30,7 +30,10 @@ function reconcileTurnClock(game: {
   }
 
   const activeTurn = getActiveTurn(game.fen);
-  const elapsedMs = Math.max(0, Date.now() - new Date(game.lastMoveAt).getTime());
+  const elapsedMs = Math.max(
+    0,
+    Date.now() - new Date(game.lastMoveAt).getTime(),
+  );
 
   if (elapsedMs <= 0) {
     return {
@@ -169,18 +172,14 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
 
       const activeTurn = getActiveTurn(game.fen);
 
-      sendMessage(socket, {
-        type: EventType.GAME_STATE,
-        gameId: message.gameId,
-        data: {
-          fen: game.fen,
-          whiteId: game.whiteId,
-          blackId: game.blackId,
-          whiteTimeMs: game.whiteTimeMs,
-          blackTimeMs: game.blackTimeMs,
-          status: game.status,
-          turn: activeTurn,
-        },
+      gameSocketManager.sendGameState(socket, message.gameId, {
+        fen: game.fen,
+        whiteId: game.whiteId,
+        blackId: game.blackId,
+        whiteTimeMs: game.whiteTimeMs,
+        blackTimeMs: game.blackTimeMs,
+        status: game.status,
+        turn: activeTurn,
       });
 
       gameSocketManager.broadcast(
@@ -190,7 +189,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
           gameId: message.gameId,
           data: { userId },
         },
-        socket
+        socket,
       );
       break;
     }
@@ -268,18 +267,14 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
 
         gameEngineCache.evict(message.gameId);
 
-        gameSocketManager.broadcast(message.gameId, {
-          type: EventType.GAME_STATE,
-          gameId: message.gameId,
-          data: {
-            fen: timedOutGame.fen,
-            whiteId: timedOutGame.whiteId,
-            blackId: timedOutGame.blackId,
-            whiteTimeMs: timedOutGame.whiteTimeMs,
-            blackTimeMs: timedOutGame.blackTimeMs,
-            status: timedOutGame.status,
-            turn: getActiveTurn(timedOutGame.fen),
-          },
+        gameSocketManager.broadcastGameState(message.gameId, {
+          fen: timedOutGame.fen,
+          whiteId: timedOutGame.whiteId,
+          blackId: timedOutGame.blackId,
+          whiteTimeMs: timedOutGame.whiteTimeMs,
+          blackTimeMs: timedOutGame.blackTimeMs,
+          status: timedOutGame.status,
+          turn: getActiveTurn(timedOutGame.fen),
         });
 
         sendMessage(socket, {
@@ -353,9 +348,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
               ...(outcome.isGameOver
                 ? {
                     status: GameStatus.FINISHED,
-                    result: outcome.result
-                      ? GameResult[outcome.result]
-                      : null,
+                    result: outcome.result ? GameResult[outcome.result] : null,
                     winnerId,
                   }
                 : {}),
@@ -394,18 +387,14 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         },
       });
 
-      gameSocketManager.broadcast(message.gameId, {
-        type: EventType.GAME_STATE,
-        gameId: message.gameId,
-        data: {
-          fen: moveResult.fen,
-          whiteId: game.whiteId,
-          blackId: game.blackId,
-          whiteTimeMs: activeClock.whiteTimeMs,
-          blackTimeMs: activeClock.blackTimeMs,
-          status: outcome.isGameOver ? GameStatus.FINISHED : game.status,
-          turn: nextTurn,
-        },
+      gameSocketManager.broadcastGameState(message.gameId, {
+        fen: moveResult.fen,
+        whiteId: game.whiteId,
+        blackId: game.blackId,
+        whiteTimeMs: activeClock.whiteTimeMs,
+        blackTimeMs: activeClock.blackTimeMs,
+        status: outcome.isGameOver ? GameStatus.FINISHED : game.status,
+        turn: nextTurn,
       });
 
       break;
@@ -458,7 +447,8 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         sendMessage(socket, {
           type: EventType.GAME_ERROR,
           data: {
-            message: "Only the player whose clock is running may pause the game",
+            message:
+              "Only the player whose clock is running may pause the game",
           },
         });
         return;
@@ -481,18 +471,14 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
 
         gameEngineCache.evict(message.gameId);
 
-        gameSocketManager.broadcast(message.gameId, {
-          type: EventType.GAME_STATE,
-          gameId: message.gameId,
-          data: {
-            fen: timedOutGame.fen,
-            whiteId: timedOutGame.whiteId,
-            blackId: timedOutGame.blackId,
-            whiteTimeMs: timedOutGame.whiteTimeMs,
-            blackTimeMs: timedOutGame.blackTimeMs,
-            status: timedOutGame.status,
-            turn: getActiveTurn(timedOutGame.fen),
-          },
+        gameSocketManager.broadcastGameState(message.gameId, {
+          fen: timedOutGame.fen,
+          whiteId: timedOutGame.whiteId,
+          blackId: timedOutGame.blackId,
+          whiteTimeMs: timedOutGame.whiteTimeMs,
+          blackTimeMs: timedOutGame.blackTimeMs,
+          status: timedOutGame.status,
+          turn: getActiveTurn(timedOutGame.fen),
         });
 
         sendMessage(socket, {
@@ -512,18 +498,14 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         },
       });
 
-      gameSocketManager.broadcast(message.gameId, {
-        type: EventType.GAME_STATE,
-        gameId: message.gameId,
-        data: {
-          fen: updatedGame.fen,
-          whiteId: updatedGame.whiteId,
-          blackId: updatedGame.blackId,
-          whiteTimeMs: updatedGame.whiteTimeMs,
-          blackTimeMs: updatedGame.blackTimeMs,
-          status: updatedGame.status,
-          turn: getActiveTurn(updatedGame.fen),
-        },
+      gameSocketManager.broadcastGameState(message.gameId, {
+        fen: updatedGame.fen,
+        whiteId: updatedGame.whiteId,
+        blackId: updatedGame.blackId,
+        whiteTimeMs: updatedGame.whiteTimeMs,
+        blackTimeMs: updatedGame.blackTimeMs,
+        status: updatedGame.status,
+        turn: getActiveTurn(updatedGame.fen),
       });
       break;
     }
@@ -589,18 +571,14 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         },
       });
 
-      gameSocketManager.broadcast(message.gameId, {
-        type: EventType.GAME_STATE,
-        gameId: message.gameId,
-        data: {
-          fen: resumedGame.fen,
-          whiteId: resumedGame.whiteId,
-          blackId: resumedGame.blackId,
-          whiteTimeMs: resumedGame.whiteTimeMs,
-          blackTimeMs: resumedGame.blackTimeMs,
-          status: resumedGame.status,
-          turn: activeTurn,
-        },
+      gameSocketManager.broadcastGameState(message.gameId, {
+        fen: resumedGame.fen,
+        whiteId: resumedGame.whiteId,
+        blackId: resumedGame.blackId,
+        whiteTimeMs: resumedGame.whiteTimeMs,
+        blackTimeMs: resumedGame.blackTimeMs,
+        status: resumedGame.status,
+        turn: activeTurn,
       });
       break;
     }

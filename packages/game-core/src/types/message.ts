@@ -1,5 +1,7 @@
 import type { EventType } from "./events";
 
+export type GameRole = "white" | "black" | "spectator";
+
 // client -> server
 export type ClientMessage =
   | {
@@ -55,6 +57,7 @@ export type ServerMessage =
         blackTimeMs: number;
         status: string;
         turn: "white" | "black";
+        role: GameRole;
       };
     }
   | {

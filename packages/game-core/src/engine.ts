@@ -10,8 +10,14 @@ export function createEngine(fen?: string): Chess {
 
 export function tryMove(
   engine: Chess,
-  move: { from: string; to: string; promotion?: string }
-): { fen: string; san: string; from: string; to: string; promotion?: string } | null {
+  move: { from: string; to: string; promotion?: string },
+): {
+  fen: string;
+  san: string;
+  from: string;
+  to: string;
+  promotion?: string;
+} | null {
   try {
     const moveResult = engine.move(move);
 

@@ -31,7 +31,7 @@ export default function RootLayout({
         className={cn(
           "min-h-svh bg-background font-sans antialiased",
           geistSans.variable,
-          geistMono.variable
+          geistMono.variable,
         )}
       >
         <ThemeProvider

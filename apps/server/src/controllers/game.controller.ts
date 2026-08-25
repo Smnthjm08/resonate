@@ -1,4 +1,4 @@
-import { EventType, START_FEN, WHITE } from "@repo/game-core";
+import { START_FEN, WHITE } from "@repo/game-core";
 import type { Request, Response } from "express";
 import { GameStatus, prisma } from "@repo/db";
 import { gameSocketManager } from "../sockets/game-socket";
@@ -147,18 +147,14 @@ export const joinGame = async (req: Request, res: Response) => {
       const activeTurn: "white" | "black" =
         updatedGame.fen.split(" ")[1] === WHITE ? "white" : "black";
 
-      gameSocketManager.broadcast(gameId, {
-        type: EventType.GAME_STATE,
-        gameId,
-        data: {
-          fen: updatedGame.fen,
-          whiteId: updatedGame.whiteId,
-          blackId: updatedGame.blackId,
-          whiteTimeMs: updatedGame.whiteTimeMs,
-          blackTimeMs: updatedGame.blackTimeMs,
-          status: updatedGame.status,
-          turn: activeTurn,
-        },
+      gameSocketManager.broadcastGameState(gameId, {
+        fen: updatedGame.fen,
+        whiteId: updatedGame.whiteId,
+        blackId: updatedGame.blackId,
+        whiteTimeMs: updatedGame.whiteTimeMs,
+        blackTimeMs: updatedGame.blackTimeMs,
+        status: updatedGame.status,
+        turn: activeTurn,
       });
     }
 
@@ -181,7 +177,7 @@ export const joinGame = async (req: Request, res: Response) => {
 
 export const getGames = async (req: Request, res: Response) => {
   try {
-    const { status } = req.query;
+    const { status, page, limit } = req.query;
 
     const validStatus =
       typeof status === "string" &&
@@ -189,19 +185,47 @@ export const getGames = async (req: Request, res: Response) => {
         ? (status as GameStatus)
         : undefined;
 
+    const pageNumber = Math.max(
+      1,
+      Number.parseInt(typeof page === "string" ? page : "1", 10) || 1,
+    );
+    const pageSize = Math.min(
+      100,
+      Math.max(
+        1,
+        Number.parseInt(typeof limit === "string" ? limit : "20", 10) || 20,
+      ),
+    );
+
+    const skip = (pageNumber - 1) * pageSize;
+
+    const totalGames = await prisma.game.count({
+      where: validStatus ? { status: validStatus } : undefined,
+    });
+
     const games = await prisma.game.findMany({
       where: validStatus ? { status: validStatus } : undefined,
       orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
       include: {
         white: { select: { id: true, username: true } },
         black: { select: { id: true, username: true } },
       },
     });
 
+    const totalPages = Math.max(1, Math.ceil(totalGames / pageSize));
+
     res.status(200).json({
       success: true,
       error: null,
       data: games,
+      pagination: {
+        page: pageNumber,
+        limit: pageSize,
+        total: totalGames,
+        totalPages,
+      },
       message: "Games fetched successfully",
     });
   } catch (error) {
