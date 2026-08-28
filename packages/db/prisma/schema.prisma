@@ -13,15 +13,17 @@ datasource db {
 }
 
 model User {
-  id       String  @id @default(uuid())
-  name     String  @default("Player")
-  email    String?  @unique @default(cuid())
+  id            String  @id @default(uuid())
+  name          String  @default("Player")
+  email         String  @unique
   emailVerified Boolean @default(false)
-  image    String?
+  image         String?
 
-  username String? @unique
-  password String?
-  isGuest  Boolean @default(false)
+  // `username` plugin: null for anonymous guests, set by credential users.
+  username        String? @unique
+  displayUsername String?
+
+  // `anonymous` plugin.
   isAnonymous Boolean @default(false)
 
   createdAt DateTime @default(now())
@@ -50,6 +52,9 @@ model Session {
 
 model Account {
   id                    String    @id
+  // Better Auth 1.7 scopes account identity by issuer. The Prisma schema
+  // generator does not emit this field yet, so it is maintained by hand.
+  issuer                String
   accountId             String
   providerId            String
   userId                String
@@ -64,6 +69,7 @@ model Account {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
+  @@unique([issuer, accountId])
   @@index([userId])
 }
 
