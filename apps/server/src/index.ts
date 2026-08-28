@@ -1,9 +1,10 @@
 import "./env";
 
+import cors from "cors";
 import express from "express";
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
-import { auth } from "@repo/auth";
+import { auth, toNodeHandler, WEB_ORIGIN } from "@repo/auth";
 import { healthRoute } from "./route";
 import { registerSocket } from "./sockets/socket";
 import { apiRouter } from "./routes";
@@ -12,28 +13,12 @@ const BACKEND_PORT = process.env.BACKEND_PORT ?? 8001;
 
 const app = express();
 
-app.all("/api/auth/*splat", async (req, res) => {
-  const headers = new Headers();
-  for (const [key, value] of Object.entries(req.headers)) {
-    if (value)
-      headers.set(key, Array.isArray(value) ? value.join(", ") : value);
-  }
+// Credentials must be allowed for the browser to keep the session cookie.
+app.use(cors({ origin: WEB_ORIGIN, credentials: true }));
 
-  const request = new Request(
-    `${process.env.BETTER_AUTH_URL ?? `http://localhost:${BACKEND_PORT}`}${req.originalUrl}`,
-    {
-      method: req.method,
-      headers,
-      body: ["GET", "HEAD"].includes(req.method)
-        ? undefined
-        : (req as unknown as ReadableStream<Uint8Array>),
-    },
-  );
-  const response = await auth.handler(request);
-
-  response.headers.forEach((value, key) => res.setHeader(key, value));
-  res.status(response.status).send(await response.text());
-});
+// Better Auth reads the raw request body, so it has to be mounted before
+// express.json() consumes the stream.
+app.all("/api/auth/*splat", toNodeHandler(auth));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -44,9 +29,9 @@ app.use("/api/v1", apiRouter);
 
 const server = createServer(app);
 
-const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ noServer: true });
 
-registerSocket(wss);
+registerSocket(wss, server);
 
 server.listen(BACKEND_PORT, () => {
   console.log(`server is running on port ${BACKEND_PORT}`);

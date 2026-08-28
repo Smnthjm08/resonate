@@ -20,6 +20,16 @@
       "key": "gameId",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "email",
+      "value": "chessmaster-{{$timestamp}}@example.com",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "password123",
+      "type": "string"
     }
   ],
   "item": [
@@ -42,6 +52,91 @@
     {
       "name": "Auth",
       "item": [
+        {
+          "name": "Better Auth",
+          "item": [
+            {
+              "name": "Auth Health",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/ok",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "auth", "ok"]
+                }
+              }
+            },
+            {
+              "name": "Guest Sign In",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/sign-in/anonymous",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "auth", "sign-in", "anonymous"]
+                }
+              }
+            },
+            {
+              "name": "Email Sign Up",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Chess Master\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/sign-up/email",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "auth", "sign-up", "email"]
+                }
+              }
+            },
+            {
+              "name": "Email Sign In",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/sign-in/email",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "auth", "sign-in", "email"]
+                }
+              }
+            },
+            {
+              "name": "Get Session",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/get-session",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "auth", "get-session"]
+                }
+              }
+            },
+            {
+              "name": "Sign Out",
+              "request": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/api/auth/sign-out",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["api", "auth", "sign-out"]
+                }
+              }
+            }
+          ]
+        },
         {
           "name": "Guest Signup",
           "event": [
