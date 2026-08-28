@@ -1,0 +1,23 @@
+{
+  "name": "@repo/auth",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint --max-warnings 0",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@repo/eslint-config": "*",
+    "@repo/typescript-config": "*",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  },
+  "dependencies": {
+    "@repo/db": "*",
+    "better-auth": "^1.7.2"
+  }
+}
