@@ -8,7 +8,7 @@ async function createGuestUser() {
   for (let attempt = 1; attempt <= MAX_USERNAME_ATTEMPTS; attempt++) {
     try {
       return await prisma.user.create({
-        data: { username: generateUsername() },
+        data: { username: generateUsername(), isGuest: true },
       });
     } catch (error) {
       const isDuplicateUsername =
