@@ -1,3 +1,4 @@
+import type { Turn } from "../engine";
 import type { EventType } from "./events";
 
 export type GameRole = "white" | "black" | "spectator";
@@ -28,6 +29,22 @@ export type ClientMessage =
   | {
       type: EventType.GAME_RESUME;
       gameId: string;
+    }
+  | {
+      type: EventType.GAME_RESIGN;
+      gameId: string;
+    }
+  | {
+      type: EventType.GAME_DRAW_OFFER;
+      gameId: string;
+    }
+  | {
+      type: EventType.GAME_DRAW_ACCEPT;
+      gameId: string;
+    }
+  | {
+      type: EventType.GAME_DRAW_DECLINE;
+      gameId: string;
     };
 
 // server -> client
@@ -56,7 +73,10 @@ export type ServerMessage =
         whiteTimeMs: number;
         blackTimeMs: number;
         status: string;
-        turn: "white" | "black";
+        turn: Turn;
+        // `GameResult` name, null until the game ends.
+        result: string | null;
+        winnerId: string | null;
         role: GameRole;
       };
     }
@@ -83,6 +103,34 @@ export type ServerMessage =
       gameId: string;
       data?: {
         status: string;
+      };
+    }
+  | {
+      type: EventType.GAME_RESIGN;
+      gameId: string;
+      data: {
+        userId: string;
+      };
+    }
+  | {
+      type: EventType.GAME_DRAW_OFFER;
+      gameId: string;
+      data: {
+        userId: string;
+      };
+    }
+  | {
+      type: EventType.GAME_DRAW_ACCEPT;
+      gameId: string;
+      data: {
+        userId: string;
+      };
+    }
+  | {
+      type: EventType.GAME_DRAW_DECLINE;
+      gameId: string;
+      data: {
+        userId: string;
       };
     }
   | {

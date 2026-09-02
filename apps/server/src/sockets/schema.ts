@@ -1,16 +1,16 @@
 import { EventType, type ClientMessage } from "@repo/game-core";
 import z from "zod";
 
+const gameIdOnly = <T extends ClientMessage["type"]>(type: T) =>
+  z.object({
+    type: z.literal(type),
+    gameId: z.string().min(1),
+  });
+
 export const clientMessageSchema: z.ZodType<ClientMessage> =
   z.discriminatedUnion("type", [
-    z.object({
-      type: z.literal(EventType.GAME_JOIN),
-      gameId: z.string().min(1),
-    }),
-    z.object({
-      type: z.literal(EventType.GAME_LEAVE),
-      gameId: z.string().min(1),
-    }),
+    gameIdOnly(EventType.GAME_JOIN),
+    gameIdOnly(EventType.GAME_LEAVE),
     z.object({
       type: z.literal(EventType.GAME_MOVE),
       gameId: z.string().min(1),
@@ -20,12 +20,10 @@ export const clientMessageSchema: z.ZodType<ClientMessage> =
         promotion: z.string().optional(),
       }),
     }),
-    z.object({
-      type: z.literal(EventType.GAME_PAUSE),
-      gameId: z.string().min(1),
-    }),
-    z.object({
-      type: z.literal(EventType.GAME_RESUME),
-      gameId: z.string().min(1),
-    }),
+    gameIdOnly(EventType.GAME_PAUSE),
+    gameIdOnly(EventType.GAME_RESUME),
+    gameIdOnly(EventType.GAME_RESIGN),
+    gameIdOnly(EventType.GAME_DRAW_OFFER),
+    gameIdOnly(EventType.GAME_DRAW_ACCEPT),
+    gameIdOnly(EventType.GAME_DRAW_DECLINE),
   ]);

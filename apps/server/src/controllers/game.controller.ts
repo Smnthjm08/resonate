@@ -1,4 +1,4 @@
-import { START_FEN, WHITE } from "@repo/game-core";
+import { START_FEN, getActiveTurn } from "@repo/game-core";
 import type { Request, Response } from "express";
 import { GameStatus, prisma } from "@repo/db";
 import { gameSocketManager } from "../sockets/game-socket";
@@ -144,9 +144,6 @@ export const joinGame = async (req: Request, res: Response) => {
     }
 
     if (updatedGame !== game) {
-      const activeTurn: "white" | "black" =
-        updatedGame.fen.split(" ")[1] === WHITE ? "white" : "black";
-
       gameSocketManager.broadcastGameState(gameId, {
         fen: updatedGame.fen,
         whiteId: updatedGame.whiteId,
@@ -154,7 +151,9 @@ export const joinGame = async (req: Request, res: Response) => {
         whiteTimeMs: updatedGame.whiteTimeMs,
         blackTimeMs: updatedGame.blackTimeMs,
         status: updatedGame.status,
-        turn: activeTurn,
+        turn: getActiveTurn(updatedGame.fen),
+        result: updatedGame.result,
+        winnerId: updatedGame.winnerId,
       });
     }
 

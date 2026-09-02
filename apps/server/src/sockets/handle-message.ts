@@ -1,13 +1,51 @@
-import { EventType, WHITE, getOutcome, tryMove } from "@repo/game-core";
-import { GameResult, GameStatus, prisma } from "@repo/db";
+import { EventType, getActiveTurn, getOutcome, tryMove } from "@repo/game-core";
+import { type Game, GameResult, GameStatus, prisma } from "@repo/db";
 import type { RawData, WebSocket } from "ws";
 import { gameSocketManager } from "./game-socket";
 import { sendMessage } from "./send";
 import { clientMessageSchema } from "./schema";
+import { drawOfferStore } from "./draw-offer-store";
+import { finishGame } from "./finish-game";
 import { gameEngineCache } from "./game-engine-cache";
 
-function getActiveTurn(fen: string): "white" | "black" {
-  return fen.split(" ")[1] === WHITE ? "white" : "black";
+/**
+ * Resolves the socket's authenticated user and the game it is acting on. Every
+ * handler but `game:join` starts with exactly this pair of lookups; `null` back
+ * means the client has already been told why, and the handler should return.
+ */
+async function loadGameForSocket(
+  socket: WebSocket,
+  gameId: string,
+): Promise<{ userId: string; game: Game } | null> {
+  const userId = gameSocketManager.getUserId(socket);
+
+  if (!userId) {
+    sendMessage(socket, {
+      type: EventType.GAME_ERROR,
+      data: { message: "Unauthorized socket session" },
+    });
+    return null;
+  }
+
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
+
+  if (!game) {
+    sendMessage(socket, {
+      type: EventType.GAME_ERROR,
+      data: { message: "Game not found" },
+    });
+    return null;
+  }
+
+  return { userId, game };
+}
+
+/**
+ * A game a player can still resign or agree a draw in. Unlike a move, neither
+ * needs the clock to be running, so a paused game qualifies.
+ */
+function isInProgress(status: GameStatus): boolean {
+  return status === GameStatus.ACTIVE || status === GameStatus.PAUSED;
 }
 
 function reconcileTurnClock(game: {
@@ -180,6 +218,8 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         blackTimeMs: game.blackTimeMs,
         status: game.status,
         turn: activeTurn,
+        result: game.result,
+        winnerId: game.winnerId,
       });
 
       gameSocketManager.broadcast(
@@ -199,27 +239,11 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
       break;
 
     case EventType.GAME_MOVE: {
-      const userId = gameSocketManager.getUserId(socket);
+      const context = await loadGameForSocket(socket, message.gameId);
 
-      if (!userId) {
-        sendMessage(socket, {
-          type: EventType.GAME_ERROR,
-          data: { message: "Unauthorized socket session" },
-        });
-        return;
-      }
+      if (!context) return;
 
-      const game = await prisma.game.findUnique({
-        where: { id: message.gameId },
-      });
-
-      if (!game) {
-        sendMessage(socket, {
-          type: EventType.GAME_ERROR,
-          data: { message: "Game not found" },
-        });
-        return;
-      }
+      const { userId, game } = context;
 
       if (game.status !== GameStatus.ACTIVE) {
         sendMessage(socket, {
@@ -253,28 +277,15 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
       const clockState = reconcileTurnClock(game);
 
       if (clockState.timedOut) {
-        const timedOutGame = await prisma.game.update({
-          where: { id: message.gameId },
-          data: {
-            status: GameStatus.FINISHED,
-            result: GameResult.TIMEOUT,
-            winnerId: clockState.winnerId,
+        await finishGame({
+          gameId: message.gameId,
+          result: GameResult.TIMEOUT,
+          winnerId: clockState.winnerId,
+          clock: {
             whiteTimeMs: clockState.whiteTimeMs,
             blackTimeMs: clockState.blackTimeMs,
             lastMoveAt: clockState.lastMoveAt,
           },
-        });
-
-        gameEngineCache.evict(message.gameId);
-
-        gameSocketManager.broadcastGameState(message.gameId, {
-          fen: timedOutGame.fen,
-          whiteId: timedOutGame.whiteId,
-          blackId: timedOutGame.blackId,
-          whiteTimeMs: timedOutGame.whiteTimeMs,
-          blackTimeMs: timedOutGame.blackTimeMs,
-          status: timedOutGame.status,
-          turn: getActiveTurn(timedOutGame.fen),
         });
 
         sendMessage(socket, {
@@ -369,6 +380,9 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         return;
       }
 
+      // A move supersedes any offer that was standing when it was played.
+      drawOfferStore.clear(message.gameId);
+
       if (outcome.isGameOver) {
         gameEngineCache.evict(message.gameId);
       }
@@ -395,33 +409,19 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         blackTimeMs: activeClock.blackTimeMs,
         status: outcome.isGameOver ? GameStatus.FINISHED : game.status,
         turn: nextTurn,
+        result: outcome.isGameOver ? outcome.result : null,
+        winnerId,
       });
 
       break;
     }
 
     case EventType.GAME_PAUSE: {
-      const userId = gameSocketManager.getUserId(socket);
+      const context = await loadGameForSocket(socket, message.gameId);
 
-      if (!userId) {
-        sendMessage(socket, {
-          type: EventType.GAME_ERROR,
-          data: { message: "Unauthorized socket session" },
-        });
-        return;
-      }
+      if (!context) return;
 
-      const game = await prisma.game.findUnique({
-        where: { id: message.gameId },
-      });
-
-      if (!game) {
-        sendMessage(socket, {
-          type: EventType.GAME_ERROR,
-          data: { message: "Game not found" },
-        });
-        return;
-      }
+      const { userId, game } = context;
 
       if (game.status !== GameStatus.ACTIVE) {
         sendMessage(socket, {
@@ -457,28 +457,15 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
       const clockState = reconcileTurnClock(game);
 
       if (clockState.timedOut) {
-        const timedOutGame = await prisma.game.update({
-          where: { id: message.gameId },
-          data: {
-            status: GameStatus.FINISHED,
-            result: GameResult.TIMEOUT,
-            winnerId: clockState.winnerId,
+        await finishGame({
+          gameId: message.gameId,
+          result: GameResult.TIMEOUT,
+          winnerId: clockState.winnerId,
+          clock: {
             whiteTimeMs: clockState.whiteTimeMs,
             blackTimeMs: clockState.blackTimeMs,
             lastMoveAt: clockState.lastMoveAt,
           },
-        });
-
-        gameEngineCache.evict(message.gameId);
-
-        gameSocketManager.broadcastGameState(message.gameId, {
-          fen: timedOutGame.fen,
-          whiteId: timedOutGame.whiteId,
-          blackId: timedOutGame.blackId,
-          whiteTimeMs: timedOutGame.whiteTimeMs,
-          blackTimeMs: timedOutGame.blackTimeMs,
-          status: timedOutGame.status,
-          turn: getActiveTurn(timedOutGame.fen),
         });
 
         sendMessage(socket, {
@@ -506,32 +493,18 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         blackTimeMs: updatedGame.blackTimeMs,
         status: updatedGame.status,
         turn: getActiveTurn(updatedGame.fen),
+        result: updatedGame.result,
+        winnerId: updatedGame.winnerId,
       });
       break;
     }
 
     case EventType.GAME_RESUME: {
-      const userId = gameSocketManager.getUserId(socket);
+      const context = await loadGameForSocket(socket, message.gameId);
 
-      if (!userId) {
-        sendMessage(socket, {
-          type: EventType.GAME_ERROR,
-          data: { message: "Unauthorized socket session" },
-        });
-        return;
-      }
+      if (!context) return;
 
-      const game = await prisma.game.findUnique({
-        where: { id: message.gameId },
-      });
-
-      if (!game) {
-        sendMessage(socket, {
-          type: EventType.GAME_ERROR,
-          data: { message: "Game not found" },
-        });
-        return;
-      }
+      const { userId, game } = context;
 
       if (game.status !== GameStatus.PAUSED) {
         sendMessage(socket, {
@@ -579,6 +552,201 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         blackTimeMs: resumedGame.blackTimeMs,
         status: resumedGame.status,
         turn: activeTurn,
+        result: resumedGame.result,
+        winnerId: resumedGame.winnerId,
+      });
+      break;
+    }
+
+    case EventType.GAME_RESIGN: {
+      const context = await loadGameForSocket(socket, message.gameId);
+
+      if (!context) return;
+
+      const { userId, game } = context;
+
+      if (!isInProgress(game.status)) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Game is not in progress" },
+        });
+        return;
+      }
+
+      if (userId !== game.whiteId && userId !== game.blackId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Spectators cannot resign" },
+        });
+        return;
+      }
+
+      // The clock is deliberately left as of the last move: a resignation is a
+      // resignation whether or not the resigning player was also about to flag.
+      gameSocketManager.broadcast(message.gameId, {
+        type: EventType.GAME_RESIGN,
+        gameId: message.gameId,
+        data: { userId },
+      });
+
+      await finishGame({
+        gameId: message.gameId,
+        result: GameResult.RESIGNATION,
+        winnerId: userId === game.whiteId ? game.blackId : game.whiteId,
+      });
+      break;
+    }
+
+    case EventType.GAME_DRAW_OFFER: {
+      const context = await loadGameForSocket(socket, message.gameId);
+
+      if (!context) return;
+
+      const { userId, game } = context;
+
+      if (!isInProgress(game.status)) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Game is not in progress" },
+        });
+        return;
+      }
+
+      if (userId !== game.whiteId && userId !== game.blackId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Spectators cannot offer a draw" },
+        });
+        return;
+      }
+
+      const offeredBy = drawOfferStore.get(message.gameId);
+
+      if (offeredBy === userId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "You already have a draw offer pending" },
+        });
+        return;
+      }
+
+      if (offeredBy) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: {
+            message:
+              "Your opponent has already offered a draw — accept or decline it",
+          },
+        });
+        return;
+      }
+
+      drawOfferStore.set(message.gameId, userId);
+
+      gameSocketManager.broadcast(message.gameId, {
+        type: EventType.GAME_DRAW_OFFER,
+        gameId: message.gameId,
+        data: { userId },
+      });
+      break;
+    }
+
+    case EventType.GAME_DRAW_ACCEPT: {
+      const context = await loadGameForSocket(socket, message.gameId);
+
+      if (!context) return;
+
+      const { userId, game } = context;
+
+      if (!isInProgress(game.status)) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Game is not in progress" },
+        });
+        return;
+      }
+
+      if (userId !== game.whiteId && userId !== game.blackId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Spectators cannot accept a draw" },
+        });
+        return;
+      }
+
+      const offeredBy = drawOfferStore.get(message.gameId);
+
+      if (!offeredBy) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "There is no draw offer to accept" },
+        });
+        return;
+      }
+
+      if (offeredBy === userId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "You cannot accept your own draw offer" },
+        });
+        return;
+      }
+
+      gameSocketManager.broadcast(message.gameId, {
+        type: EventType.GAME_DRAW_ACCEPT,
+        gameId: message.gameId,
+        data: { userId },
+      });
+
+      await finishGame({
+        gameId: message.gameId,
+        result: GameResult.DRAW_AGREED,
+        winnerId: null,
+      });
+      break;
+    }
+
+    case EventType.GAME_DRAW_DECLINE: {
+      const context = await loadGameForSocket(socket, message.gameId);
+
+      if (!context) return;
+
+      const { userId, game } = context;
+
+      if (userId !== game.whiteId && userId !== game.blackId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "Spectators cannot decline a draw" },
+        });
+        return;
+      }
+
+      const offeredBy = drawOfferStore.get(message.gameId);
+
+      if (!offeredBy) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "There is no draw offer to decline" },
+        });
+        return;
+      }
+
+      // An offer stands until the opponent answers it or plays a move; the
+      // player who made it cannot take it back.
+      if (offeredBy === userId) {
+        sendMessage(socket, {
+          type: EventType.GAME_ERROR,
+          data: { message: "You cannot decline your own draw offer" },
+        });
+        return;
+      }
+
+      drawOfferStore.clear(message.gameId);
+
+      gameSocketManager.broadcast(message.gameId, {
+        type: EventType.GAME_DRAW_DECLINE,
+        gameId: message.gameId,
+        data: { userId },
       });
       break;
     }

@@ -2,10 +2,23 @@ import { Chess, DEFAULT_POSITION } from "chess.js";
 
 export type ChessEngine = Chess;
 
+export type Turn = "white" | "black";
+
 export const START_FEN = DEFAULT_POSITION;
 
 export function createEngine(fen?: string): Chess {
   return new Chess(fen ?? START_FEN);
+}
+
+/**
+ * The side to move, read straight from the FEN's active-colour field.
+ *
+ * Compared against the literal `"w"` rather than the `WHITE` constant because
+ * `constants.ts` re-exports `START_FEN` from this module, and importing it back
+ * would make the two files circular.
+ */
+export function getActiveTurn(fen: string): Turn {
+  return fen.split(" ")[1] === "b" ? "black" : "white";
 }
 
 export function tryMove(
