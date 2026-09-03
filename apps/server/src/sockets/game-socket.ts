@@ -31,6 +31,18 @@ export class GameSocketManager {
     return this.userSockets.get(userId);
   }
 
+  getSession(socket: WebSocket): Session | undefined {
+    return this.sessions.get(socket);
+  }
+
+  isUserInRoom(gameId: string, userId: string): boolean {
+    const socket = this.userSockets.get(userId);
+
+    if (!socket) return false;
+
+    return this.sessions.get(socket)?.gameId === gameId;
+  }
+
   setAuthenticatedUser(socket: WebSocket, userId: string) {
     const existingSocket = this.userSockets.get(userId);
 
@@ -88,10 +100,6 @@ export class GameSocketManager {
       this.sessions.set(socket, { userId: session.userId, gameId: "" });
     }
 
-    if (session?.userId && this.userSockets.get(session.userId) === socket) {
-      this.userSockets.delete(session.userId);
-    }
-
     if (room.size === 0) {
       this.rooms.delete(gameId);
     } else if (session?.userId) {
@@ -106,16 +114,14 @@ export class GameSocketManager {
   leaveAllRooms(socket: WebSocket) {
     const session = this.sessions.get(socket);
 
-    if (!session?.gameId) {
-      if (session?.userId) {
-        this.userSockets.delete(session.userId);
-      }
-
-      this.sessions.delete(socket);
-      return;
+    if (session?.gameId) {
+      this.leaveRoom(session.gameId, socket);
     }
 
-    this.leaveRoom(session.gameId, socket);
+    if (session?.userId && this.userSockets.get(session.userId) === socket) {
+      this.userSockets.delete(session.userId);
+    }
+
     this.sessions.delete(socket);
   }
 

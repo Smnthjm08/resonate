@@ -6,6 +6,7 @@ import { handleMessage } from "./handle-message";
 import { sendMessage } from "./send";
 import { EventType } from "@repo/game-core";
 import { getSessionUser, getTicketUser } from "../utils/session";
+import { scheduleAbandonment } from "./abandonment";
 
 function reject(socket: NodeJS.WritableStream & { destroy(): void }) {
   socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
@@ -38,7 +39,16 @@ function onConnection(ws: WebSocket, userId: string) {
 
   ws.on("close", () => {
     console.log("Client disconnected");
+
+    // Read before the session is cleared; a socket that dropped mid-game puts
+    // its player on the abandonment clock.
+    const session = gameSocketManager.getSession(ws);
+
     gameSocketManager.leaveAllRooms(ws);
+
+    if (session?.gameId && session.userId) {
+      scheduleAbandonment(session.gameId, session.userId);
+    }
   });
 
   ws.on("error", console.error);

@@ -5,8 +5,9 @@ import { gameSocketManager } from "./game-socket";
 import { sendMessage } from "./send";
 import { clientMessageSchema } from "./schema";
 import { reconcileTurnClock } from "./clock";
+import { cancelAbandonment } from "./abandonment";
 import { scheduleClockExpiry } from "./clock-expiry";
-import { clockTimerStore } from "./clock-timer-store";
+import { clockTimerStore } from "./timer-store";
 import { drawOfferStore } from "./draw-offer-store";
 import { finishGame } from "./finish-game";
 import { gameEngineCache } from "./game-engine-cache";
@@ -132,6 +133,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
       }
 
       gameSocketManager.joinRoom(message.gameId, socket);
+      cancelAbandonment(message.gameId, userId);
 
       const activeTurn = getActiveTurn(game.fen);
 

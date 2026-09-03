@@ -1,6 +1,7 @@
 import { GameResult, GameStatus, prisma } from "@repo/db";
 import { getActiveTurn } from "@repo/game-core";
-import { clockTimerStore } from "./clock-timer-store";
+import { cancelGameAbandonment } from "./abandonment";
+import { clockTimerStore } from "./timer-store";
 import { drawOfferStore } from "./draw-offer-store";
 import { gameEngineCache } from "./game-engine-cache";
 import { gameSocketManager } from "./game-socket";
@@ -28,7 +29,7 @@ type FinishGameParams = {
  * to the room.
  *
  * Timeout, resignation and draw-by-agreement all land here; server-side clock
- * expiry and abandonment on disconnect are meant to as well.
+ * expiry and abandonment on disconnect call it too.
  *
  * The move handler is deliberately *not* a caller — a checkmating move has to
  * write the move row and the terminal state in one transaction.
@@ -52,6 +53,7 @@ export async function finishGame({
   gameEngineCache.evict(gameId);
   drawOfferStore.clear(gameId);
   clockTimerStore.cancel(gameId);
+  cancelGameAbandonment(game);
 
   gameSocketManager.broadcastGameState(gameId, {
     fen: game.fen,

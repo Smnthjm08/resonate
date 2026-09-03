@@ -1,6 +1,6 @@
 import { GameResult, GameStatus, prisma } from "@repo/db";
 import { type ClockGame, reconcileTurnClock, remainingMs } from "./clock";
-import { clockTimerStore } from "./clock-timer-store";
+import { clockTimerStore } from "./timer-store";
 import { finishGame } from "./finish-game";
 
 type SchedulableGame = ClockGame & { id: string };
