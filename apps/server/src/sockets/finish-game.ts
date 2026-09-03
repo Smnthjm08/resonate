@@ -1,5 +1,6 @@
 import { GameResult, GameStatus, prisma } from "@repo/db";
 import { getActiveTurn } from "@repo/game-core";
+import { clockTimerStore } from "./clock-timer-store";
 import { drawOfferStore } from "./draw-offer-store";
 import { gameEngineCache } from "./game-engine-cache";
 import { gameSocketManager } from "./game-socket";
@@ -50,6 +51,7 @@ export async function finishGame({
 
   gameEngineCache.evict(gameId);
   drawOfferStore.clear(gameId);
+  clockTimerStore.cancel(gameId);
 
   gameSocketManager.broadcastGameState(gameId, {
     fen: game.fen,

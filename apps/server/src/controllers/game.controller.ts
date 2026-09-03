@@ -1,6 +1,7 @@
 import { START_FEN, getActiveTurn } from "@repo/game-core";
 import type { Request, Response } from "express";
 import { GameStatus, prisma } from "@repo/db";
+import { scheduleClockExpiry } from "../sockets/clock-expiry";
 import { gameSocketManager } from "../sockets/game-socket";
 
 export const createGame = async (req: Request, res: Response) => {
@@ -144,6 +145,8 @@ export const joinGame = async (req: Request, res: Response) => {
     }
 
     if (updatedGame !== game) {
+      scheduleClockExpiry(updatedGame);
+
       gameSocketManager.broadcastGameState(gameId, {
         fen: updatedGame.fen,
         whiteId: updatedGame.whiteId,

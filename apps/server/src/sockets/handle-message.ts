@@ -4,6 +4,9 @@ import type { RawData, WebSocket } from "ws";
 import { gameSocketManager } from "./game-socket";
 import { sendMessage } from "./send";
 import { clientMessageSchema } from "./schema";
+import { reconcileTurnClock } from "./clock";
+import { scheduleClockExpiry } from "./clock-expiry";
+import { clockTimerStore } from "./clock-timer-store";
 import { drawOfferStore } from "./draw-offer-store";
 import { finishGame } from "./finish-game";
 import { gameEngineCache } from "./game-engine-cache";
@@ -46,84 +49,6 @@ async function loadGameForSocket(
  */
 function isInProgress(status: GameStatus): boolean {
   return status === GameStatus.ACTIVE || status === GameStatus.PAUSED;
-}
-
-function reconcileTurnClock(game: {
-  fen: string;
-  whiteId: string | null;
-  blackId: string | null;
-  whiteTimeMs: number;
-  blackTimeMs: number;
-  status: GameStatus;
-  lastMoveAt: Date | null;
-}) {
-  if (game.status !== GameStatus.ACTIVE || !game.lastMoveAt) {
-    return {
-      whiteTimeMs: game.whiteTimeMs,
-      blackTimeMs: game.blackTimeMs,
-      lastMoveAt: game.lastMoveAt,
-      timedOut: false,
-      winnerId: null,
-    };
-  }
-
-  const activeTurn = getActiveTurn(game.fen);
-  const elapsedMs = Math.max(
-    0,
-    Date.now() - new Date(game.lastMoveAt).getTime(),
-  );
-
-  if (elapsedMs <= 0) {
-    return {
-      whiteTimeMs: game.whiteTimeMs,
-      blackTimeMs: game.blackTimeMs,
-      lastMoveAt: game.lastMoveAt,
-      timedOut: false,
-      winnerId: null,
-    };
-  }
-
-  if (activeTurn === "white") {
-    const whiteTimeMs = Math.max(0, game.whiteTimeMs - elapsedMs);
-
-    if (whiteTimeMs === 0) {
-      return {
-        whiteTimeMs: 0,
-        blackTimeMs: game.blackTimeMs,
-        lastMoveAt: new Date(),
-        timedOut: true,
-        winnerId: game.blackId,
-      };
-    }
-
-    return {
-      whiteTimeMs,
-      blackTimeMs: game.blackTimeMs,
-      lastMoveAt: new Date(),
-      timedOut: false,
-      winnerId: null,
-    };
-  }
-
-  const blackTimeMs = Math.max(0, game.blackTimeMs - elapsedMs);
-
-  if (blackTimeMs === 0) {
-    return {
-      whiteTimeMs: game.whiteTimeMs,
-      blackTimeMs: 0,
-      lastMoveAt: new Date(),
-      timedOut: true,
-      winnerId: game.whiteId,
-    };
-  }
-
-  return {
-    whiteTimeMs: game.whiteTimeMs,
-    blackTimeMs,
-    lastMoveAt: new Date(),
-    timedOut: false,
-    winnerId: null,
-  };
 }
 
 export async function handleMessage(socket: WebSocket, raw: RawData) {
@@ -326,6 +251,8 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
             : null
         : null;
 
+      const movedAt = new Date();
+
       try {
         await prisma.$transaction(async (tx) => {
           // Derived inside the transaction: a count read outside it can be
@@ -355,7 +282,7 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
               fen: moveResult.fen,
               whiteTimeMs: activeClock.whiteTimeMs,
               blackTimeMs: activeClock.blackTimeMs,
-              lastMoveAt: new Date(),
+              lastMoveAt: movedAt,
               ...(outcome.isGameOver
                 ? {
                     status: GameStatus.FINISHED,
@@ -385,6 +312,18 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
 
       if (outcome.isGameOver) {
         gameEngineCache.evict(message.gameId);
+        clockTimerStore.cancel(message.gameId);
+      } else {
+        scheduleClockExpiry({
+          id: message.gameId,
+          fen: moveResult.fen,
+          whiteId: game.whiteId,
+          blackId: game.blackId,
+          whiteTimeMs: activeClock.whiteTimeMs,
+          blackTimeMs: activeClock.blackTimeMs,
+          status: GameStatus.ACTIVE,
+          lastMoveAt: movedAt,
+        });
       }
 
       const nextTurn = getActiveTurn(moveResult.fen);
@@ -485,6 +424,8 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         },
       });
 
+      clockTimerStore.cancel(message.gameId);
+
       gameSocketManager.broadcastGameState(message.gameId, {
         fen: updatedGame.fen,
         whiteId: updatedGame.whiteId,
@@ -543,6 +484,8 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
           lastMoveAt: new Date(),
         },
       });
+
+      scheduleClockExpiry(resumedGame);
 
       gameSocketManager.broadcastGameState(message.gameId, {
         fen: resumedGame.fen,
