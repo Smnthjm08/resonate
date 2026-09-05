@@ -2,6 +2,7 @@ import { GameResult, GameStatus, prisma } from "@repo/db";
 import { abandonTimerStore } from "./timer-store";
 import { finishGame } from "./finish-game";
 import { gameSocketManager } from "./game-socket";
+import { withGameLock } from "./game-lock";
 
 /**
  * How long a disconnected player has to come back before they forfeit. Fixed
@@ -40,21 +41,23 @@ export function cancelGameAbandonment(game: {
  * dropped.
  */
 async function abandonGame(gameId: string, userId: string): Promise<void> {
-  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  await withGameLock(gameId, async () => {
+    const game = await prisma.game.findUnique({ where: { id: gameId } });
 
-  if (!game) return;
+    if (!game) return;
 
-  const isPlayer = userId === game.whiteId || userId === game.blackId;
-  const inProgress =
-    game.status === GameStatus.ACTIVE || game.status === GameStatus.PAUSED;
+    const isPlayer = userId === game.whiteId || userId === game.blackId;
+    const inProgress =
+      game.status === GameStatus.ACTIVE || game.status === GameStatus.PAUSED;
 
-  if (!isPlayer || !inProgress) return;
+    if (!isPlayer || !inProgress) return;
 
-  if (gameSocketManager.isUserInRoom(gameId, userId)) return;
+    if (gameSocketManager.isUserInRoom(gameId, userId)) return;
 
-  await finishGame({
-    gameId,
-    result: GameResult.ABANDONED,
-    winnerId: userId === game.whiteId ? game.blackId : game.whiteId,
+    await finishGame({
+      gameId,
+      result: GameResult.ABANDONED,
+      winnerId: userId === game.whiteId ? game.blackId : game.whiteId,
+    });
   });
 }

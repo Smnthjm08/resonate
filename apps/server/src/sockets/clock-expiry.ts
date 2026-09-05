@@ -2,6 +2,7 @@ import { GameResult, GameStatus, prisma } from "@repo/db";
 import { type ClockGame, reconcileTurnClock, remainingMs } from "./clock";
 import { clockTimerStore } from "./timer-store";
 import { finishGame } from "./finish-game";
+import { withGameLock } from "./game-lock";
 
 type SchedulableGame = ClockGame & { id: string };
 
@@ -29,26 +30,30 @@ export function scheduleClockExpiry(game: SchedulableGame): void {
  * that may since have been moved in, paused, or finished some other way.
  */
 async function expireClock(gameId: string): Promise<void> {
-  const game = await prisma.game.findUnique({ where: { id: gameId } });
+  // Under the game's lock: an in-flight move must land or fail before the flag
+  // is allowed to fall on the position it was armed against.
+  await withGameLock(gameId, async () => {
+    const game = await prisma.game.findUnique({ where: { id: gameId } });
 
-  if (!game || game.status !== GameStatus.ACTIVE) return;
+    if (!game || game.status !== GameStatus.ACTIVE) return;
 
-  const clockState = reconcileTurnClock(game);
+    const clockState = reconcileTurnClock(game);
 
-  if (!clockState.timedOut) {
-    scheduleClockExpiry(game);
-    return;
-  }
+    if (!clockState.timedOut) {
+      scheduleClockExpiry(game);
+      return;
+    }
 
-  await finishGame({
-    gameId,
-    result: GameResult.TIMEOUT,
-    winnerId: clockState.winnerId,
-    clock: {
-      whiteTimeMs: clockState.whiteTimeMs,
-      blackTimeMs: clockState.blackTimeMs,
-      lastMoveAt: clockState.lastMoveAt,
-    },
+    await finishGame({
+      gameId,
+      result: GameResult.TIMEOUT,
+      winnerId: clockState.winnerId,
+      clock: {
+        whiteTimeMs: clockState.whiteTimeMs,
+        blackTimeMs: clockState.blackTimeMs,
+        lastMoveAt: clockState.lastMoveAt,
+      },
+    });
   });
 }
 

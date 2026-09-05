@@ -1,4 +1,10 @@
-import { EventType, getActiveTurn, getOutcome, tryMove } from "@repo/game-core";
+import {
+  type ClientMessage,
+  EventType,
+  getActiveTurn,
+  getOutcome,
+  tryMove,
+} from "@repo/game-core";
 import { type Game, GameResult, GameStatus, prisma } from "@repo/db";
 import type { RawData, WebSocket } from "ws";
 import { gameSocketManager } from "./game-socket";
@@ -11,6 +17,7 @@ import { clockTimerStore } from "./timer-store";
 import { drawOfferStore } from "./draw-offer-store";
 import { finishGame } from "./finish-game";
 import { gameEngineCache } from "./game-engine-cache";
+import { withGameLock } from "./game-lock";
 
 /**
  * Resolves the socket's authenticated user and the game it is acting on. Every
@@ -43,6 +50,9 @@ async function loadGameForSocket(
 
   return { userId, game };
 }
+
+/** The position moved under us between the read and the write. */
+class StalePositionError extends Error {}
 
 /**
  * A game a player can still resign or agree a draw in. Unlike a move, neither
@@ -79,6 +89,13 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
 
   const message = result.data;
 
+  // Every handler below reads a game, decides on it and writes it back across
+  // several awaits, so the whole dispatch runs under that game's lock rather
+  // than each handler guarding itself.
+  return withGameLock(message.gameId, () => dispatch(socket, message));
+}
+
+async function dispatch(socket: WebSocket, message: ClientMessage) {
   switch (message.type) {
     case EventType.GAME_JOIN: {
       const userId = gameSocketManager.getUserId(socket);
@@ -278,8 +295,11 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
             },
           });
 
-          await tx.game.update({
-            where: { id: message.gameId },
+          // Guarded on the FEN this handler read. `withGameLock` already
+          // serializes moves within this process; the condition is what stops
+          // a second process from committing against a stale position.
+          const { count } = await tx.game.updateMany({
+            where: { id: message.gameId, fen: game.fen },
             data: {
               fen: moveResult.fen,
               whiteTimeMs: activeClock.whiteTimeMs,
@@ -294,6 +314,8 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
                 : {}),
             },
           });
+
+          if (count === 0) throw new StalePositionError();
         });
       } catch (error) {
         gameEngineCache.evict(message.gameId);
@@ -301,9 +323,12 @@ export async function handleMessage(socket: WebSocket, raw: RawData) {
         sendMessage(socket, {
           type: EventType.GAME_ERROR,
           data: {
-            message: `Failed to save move: ${
-              error instanceof Error ? error.message : "Unknown error"
-            }`,
+            message:
+              error instanceof StalePositionError
+                ? "The position changed while the move was being saved"
+                : `Failed to save move: ${
+                    error instanceof Error ? error.message : "Unknown error"
+                  }`,
           },
         });
         return;

@@ -1,8 +1,9 @@
 import { START_FEN, getActiveTurn } from "@repo/game-core";
 import type { Request, Response } from "express";
-import { GameStatus, prisma } from "@repo/db";
+import { type Game, GameStatus, prisma } from "@repo/db";
 import { scheduleClockExpiry } from "../sockets/clock-expiry";
 import { gameSocketManager } from "../sockets/game-socket";
+import { withGameLock } from "../sockets/game-lock";
 
 export const createGame = async (req: Request, res: Response) => {
   try {
@@ -58,6 +59,81 @@ export const createGame = async (req: Request, res: Response) => {
   }
 };
 
+type SeatResult =
+  | { status: "ok"; game: Game; role: "white" | "black" }
+  | { status: "not-found" }
+  | { status: "full" };
+
+/** Two seats, so a claim can lose at most twice before the game is full. */
+const MAX_SEAT_ATTEMPTS = 3;
+
+/**
+ * The lock only covers this process, so each claim is also conditioned on the
+ * seat still being null. Seats are never vacated, so the retry cannot spin.
+ */
+function claimSeat(gameId: string, userId: string): Promise<SeatResult> {
+  return withGameLock(gameId, async () => {
+    for (let attempt = 0; attempt < MAX_SEAT_ATTEMPTS; attempt++) {
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
+
+      if (!game) return { status: "not-found" } as const;
+
+      if (game.whiteId === userId) {
+        return { status: "ok", game, role: "white" } as const;
+      }
+
+      if (game.blackId === userId) {
+        return { status: "ok", game, role: "black" } as const;
+      }
+
+      const role = !game.whiteId ? "white" : !game.blackId ? "black" : null;
+
+      if (!role) return { status: "full" } as const;
+
+      // Filling the second seat is what starts the game and its clock.
+      const { count } =
+        role === "white"
+          ? await prisma.game.updateMany({
+              where: { id: gameId, whiteId: null },
+              data: { whiteId: userId },
+            })
+          : await prisma.game.updateMany({
+              where: { id: gameId, blackId: null },
+              data: {
+                blackId: userId,
+                status: GameStatus.ACTIVE,
+                lastMoveAt: new Date(),
+              },
+            });
+
+      // Lost the seat to another process between the read and the write.
+      if (count === 0) continue;
+
+      const seated = await prisma.game.findUniqueOrThrow({
+        where: { id: gameId },
+      });
+
+      scheduleClockExpiry(seated);
+
+      gameSocketManager.broadcastGameState(gameId, {
+        fen: seated.fen,
+        whiteId: seated.whiteId,
+        blackId: seated.blackId,
+        whiteTimeMs: seated.whiteTimeMs,
+        blackTimeMs: seated.blackTimeMs,
+        status: seated.status,
+        turn: getActiveTurn(seated.fen),
+        result: seated.result,
+        winnerId: seated.winnerId,
+      });
+
+      return { status: "ok", game: seated, role } as const;
+    }
+
+    return { status: "full" } as const;
+  });
+}
+
 export const joinGame = async (req: Request, res: Response) => {
   try {
     const userId = req.user?.id;
@@ -99,11 +175,9 @@ export const joinGame = async (req: Request, res: Response) => {
       });
     }
 
-    const game = await prisma.game.findUnique({
-      where: { id: gameId },
-    });
+    const seat = await claimSeat(gameId, userId);
 
-    if (!game) {
+    if (seat.status === "not-found") {
       return res.status(404).json({
         success: false,
         error: "Game not found",
@@ -112,30 +186,7 @@ export const joinGame = async (req: Request, res: Response) => {
       });
     }
 
-    let role: "white" | "black";
-    let updatedGame = game;
-
-    if (game.whiteId === userId) {
-      role = "white";
-    } else if (game.blackId === userId) {
-      role = "black";
-    } else if (!game.whiteId) {
-      role = "white";
-      updatedGame = await prisma.game.update({
-        where: { id: gameId },
-        data: { whiteId: userId },
-      });
-    } else if (!game.blackId) {
-      role = "black";
-      updatedGame = await prisma.game.update({
-        where: { id: gameId },
-        data: {
-          blackId: userId,
-          status: GameStatus.ACTIVE,
-          lastMoveAt: new Date(),
-        },
-      });
-    } else {
+    if (seat.status === "full") {
       return res.status(400).json({
         success: false,
         error: "Game is full",
@@ -144,26 +195,10 @@ export const joinGame = async (req: Request, res: Response) => {
       });
     }
 
-    if (updatedGame !== game) {
-      scheduleClockExpiry(updatedGame);
-
-      gameSocketManager.broadcastGameState(gameId, {
-        fen: updatedGame.fen,
-        whiteId: updatedGame.whiteId,
-        blackId: updatedGame.blackId,
-        whiteTimeMs: updatedGame.whiteTimeMs,
-        blackTimeMs: updatedGame.blackTimeMs,
-        status: updatedGame.status,
-        turn: getActiveTurn(updatedGame.fen),
-        result: updatedGame.result,
-        winnerId: updatedGame.winnerId,
-      });
-    }
-
     res.status(200).json({
       success: true,
       error: null,
-      data: { game: updatedGame, role },
+      data: { game: seat.game, role: seat.role },
       message: "Joined game successfully",
     });
   } catch (error) {
