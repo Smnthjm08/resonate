@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,8 +50,10 @@ export default function Home() {
           ))}
         </CardContent>
         <CardFooter className="gap-2">
-          <Button>New game</Button>
-          <Button variant="outline">Spectate</Button>
+          <Button render={<Link href="/lobby" />}>Open lobby</Button>
+          <Button variant="outline" render={<Link href="/login" />}>
+            Sign in
+          </Button>
         </CardFooter>
       </Card>
     </main>
