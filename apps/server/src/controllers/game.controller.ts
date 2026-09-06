@@ -59,6 +59,14 @@ export const createGame = async (req: Request, res: Response) => {
   }
 };
 
+// Guests have no `username` — the anonymous plugin puts their handle in `name`.
+const playerSelect = {
+  id: true,
+  name: true,
+  username: true,
+  displayUsername: true,
+} as const;
+
 type SeatResult =
   | { status: "ok"; game: Game; role: "white" | "black" }
   | { status: "not-found" }
@@ -246,8 +254,8 @@ export const getGames = async (req: Request, res: Response) => {
       skip,
       take: pageSize,
       include: {
-        white: { select: { id: true, username: true } },
-        black: { select: { id: true, username: true } },
+        white: { select: playerSelect },
+        black: { select: playerSelect },
       },
     });
 
@@ -293,8 +301,8 @@ export const getGameById = async (req: Request, res: Response) => {
     const game = await prisma.game.findUnique({
       where: { id: gameId },
       include: {
-        white: { select: { id: true, username: true } },
-        black: { select: { id: true, username: true } },
+        white: { select: playerSelect },
+        black: { select: playerSelect },
         moves: { orderBy: { moveNumber: "asc" } },
       },
     });

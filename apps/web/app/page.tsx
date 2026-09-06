@@ -50,8 +50,14 @@ export default function Home() {
           ))}
         </CardContent>
         <CardFooter className="gap-2">
-          <Button render={<Link href="/lobby" />}>Open lobby</Button>
-          <Button variant="outline" render={<Link href="/login" />}>
+          <Button nativeButton={false} render={<Link href="/lobby" />}>
+            Open lobby
+          </Button>
+          <Button
+            variant="outline"
+            nativeButton={false}
+            render={<Link href="/login" />}
+          >
             Sign in
           </Button>
         </CardFooter>

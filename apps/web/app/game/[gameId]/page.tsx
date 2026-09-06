@@ -5,7 +5,13 @@ import { StatusBadge } from "@/components/game/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { ApiError, getGame, type GameDetail, type Move } from "@/lib/api";
+import {
+  ApiError,
+  getGame,
+  playerLabel,
+  type GameDetail,
+  type Move,
+} from "@/lib/api";
 
 function formatClock(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -88,13 +94,13 @@ export default async function GamePage({
             <CardContent className="space-y-4">
               <PlayerRow
                 label="Black"
-                name={game.black?.username ?? "Open seat"}
+                name={playerLabel(game.black)}
                 clock={game.blackTimeMs}
               />
               <Separator />
               <PlayerRow
                 label="White"
-                name={game.white?.username ?? "Open seat"}
+                name={playerLabel(game.white)}
                 clock={game.whiteTimeMs}
               />
             </CardContent>

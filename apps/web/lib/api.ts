@@ -13,7 +13,28 @@ export type GameResult =
   | "DRAW_AGREED"
   | "ABANDONED";
 
-export type Player = { id: string; username: string | null };
+export type Player = {
+  id: string;
+  name: string;
+  username: string | null;
+  displayUsername: string | null;
+};
+
+/**
+ * Guests never have a `username` — their generated handle is `name`. Credential
+ * users get `displayUsername` for the casing they typed. Empty strings fall
+ * through too, so a seated player always renders as something.
+ */
+export function playerLabel(player: Player | null, fallback = "Open seat") {
+  if (!player) return fallback;
+
+  return (
+    player.displayUsername?.trim() ||
+    player.username?.trim() ||
+    player.name?.trim() ||
+    "Player"
+  );
+}
 
 export type Game = {
   id: string;

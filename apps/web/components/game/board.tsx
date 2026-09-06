@@ -21,11 +21,13 @@ const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
 function toSquares(fen: string): (string | null)[] {
   const placement = fen.split(" ")[0] ?? "";
 
-  return placement.split("/").flatMap((rank) =>
-    [...rank].flatMap((char) =>
-      /\d/.test(char) ? Array<null>(Number(char)).fill(null) : [char],
-    ),
-  );
+  return placement
+    .split("/")
+    .flatMap((rank) =>
+      [...rank].flatMap((char) =>
+        /\d/.test(char) ? Array<null>(Number(char)).fill(null) : [char],
+      ),
+    );
 }
 
 export function Board({
@@ -58,7 +60,11 @@ export function Board({
             )}
           >
             {piece && (
-              <span className={piece === piece.toUpperCase() ? "text-white" : "text-black"}>
+              <span
+                className={
+                  piece === piece.toUpperCase() ? "text-white" : "text-black"
+                }
+              >
                 {PIECES[piece]}
               </span>
             )}

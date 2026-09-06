@@ -9,11 +9,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { listGames, type Game } from "@/lib/api";
-
-function playerName(player: Game["white"], fallback: string) {
-  return player?.username ?? (player ? "Guest" : fallback);
-}
+import { listGames, playerLabel, type Game } from "@/lib/api";
 
 async function loadGames() {
   try {
@@ -22,7 +18,8 @@ async function loadGames() {
   } catch (error) {
     return {
       games: [] as Game[],
-      error: error instanceof Error ? error.message : "Could not reach the server",
+      error:
+        error instanceof Error ? error.message : "Could not reach the server",
     };
   }
 }
@@ -72,9 +69,9 @@ export default async function LobbyPage() {
                       <StatusBadge status={game.status} />
 
                       <span className="text-sm">
-                        {playerName(game.white, "Open seat")}
+                        {playerLabel(game.white)}
                         <span className="text-muted-foreground px-2">vs</span>
-                        {playerName(game.black, "Open seat")}
+                        {playerLabel(game.black)}
                       </span>
 
                       <code className="text-muted-foreground ml-auto font-mono text-xs">
